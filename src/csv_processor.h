@@ -96,6 +96,7 @@ private:
     std::map<std::string, std::string> m_columnTypes; // "int", "double", "date", "string"
     
     // 辅助方法
+    std::vector<ValidationError> validateInternal() const;
     std::vector<std::string> parseCSVLine(const std::string& line);
     std::string formatCSVField(const std::string& field) const;
     
