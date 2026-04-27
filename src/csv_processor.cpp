@@ -15,28 +15,50 @@ bool CSVProcessor::read(const std::string& filename, char delimiter) {
     m_header.clear();
     m_data.clear();
     
-    std::ifstream file(filename);
+    std::ifstream file(filename, std::ios::binary);
     if (!file.is_open()) {
         std::cerr << "Error: Cannot open file " << filename << std::endl;
         return false;
     }
     
-    // 设置UTF-8编码
-    file.imbue(std::locale(file.getloc(), new std::codecvt_utf8<wchar_t>));
-    
     std::string line;
+    
+    // 检查并跳过BOM (UTF-8 BOM: 0xEF 0xBB 0xBF)
+    char bom[3] = {0};
+    if (file.read(bom, 3)) {
+        if (!(static_cast<unsigned char>(bom[0]) == 0xEF && 
+              static_cast<unsigned char>(bom[1]) == 0xBB && 
+              static_cast<unsigned char>(bom[2]) == 0xBF)) {
+            // 不是BOM，将字符放回
+            file.seekg(0);
+        }
+    } else {
+        // 文件太小，重置到开头
+        file.clear();
+        file.seekg(0);
+    }
     
     // 读取表头
     if (std::getline(file, line)) {
+        // 处理可能的\r\n换行符
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
         m_header = parseCSVLine(line);
     } else {
         std::cerr << "Error: File is empty" << std::endl;
+        file.close();
         return false;
     }
     
     // 读取数据
     while (std::getline(file, line)) {
+        // 处理可能的\r\n换行符
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
         if (line.empty()) continue;
+        
         std::vector<std::string> row = parseCSVLine(line);
         
         // 检查列数是否匹配
@@ -55,21 +77,18 @@ bool CSVProcessor::read(const std::string& filename, char delimiter) {
 
 // 写入CSV文件
 bool CSVProcessor::write(const std::string& filename, char delimiter) const {
-    std::ofstream file(filename);
+    std::ofstream file(filename, std::ios::binary);
     if (!file.is_open()) {
         std::cerr << "Error: Cannot open file " << filename << " for writing" << std::endl;
         return false;
     }
-    
-    // 设置UTF-8编码
-    file.imbue(std::locale(file.getloc(), new std::codecvt_utf8<wchar_t>));
     
     // 写入表头
     for (size_t i = 0; i < m_header.size(); ++i) {
         if (i > 0) file << delimiter;
         file << formatCSVField(m_header[i]);
     }
-    file << std::endl;
+    file << '\n';
     
     // 写入数据
     for (const auto& row : m_data) {
@@ -79,7 +98,7 @@ bool CSVProcessor::write(const std::string& filename, char delimiter) const {
                 file << formatCSVField(row[i]);
             }
         }
-        file << std::endl;
+        file << '\n';
     }
     
     file.close();
@@ -147,89 +166,7 @@ std::string CSVProcessor::formatCSVField(const std::string& field) const {
 }
 
 // 正确性验证
-bool CSVProcessor::validate() const {
-    std::vector<ValidationError> errors;
-    
-    // 检查必需列
-    for (const std::string& col : m_requiredColumns) {
-        bool found = false;
-        for (const std::string& h : m_header) {
-            if (h == col) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            errors.emplace_back(0, -1, "Required column missing: " + col);
-        }
-    }
-    
-    // 检查每一行的列数
-    for (size_t rowIdx = 0; rowIdx < m_data.size(); ++rowIdx) {
-        const auto& row = m_data[rowIdx];
-        if (row.size() != m_header.size()) {
-            errors.emplace_back(
-                static_cast<int>(rowIdx + 1), 
-                static_cast<int>(row.size()),
-                "Column count mismatch: expected " + std::to_string(m_header.size()) + 
-                ", got " + std::to_string(row.size())
-            );
-        }
-        
-        // 检查列类型
-        for (size_t colIdx = 0; colIdx < row.size() && colIdx < m_header.size(); ++colIdx) {
-            const std::string& colName = m_header[colIdx];
-            const std::string& value = row[colIdx];
-            
-            if (m_columnTypes.find(colName) != m_columnTypes.end()) {
-                const std::string& type = m_columnTypes.at(colName);
-                
-                if (type == "int" && !value.empty()) {
-                    try {
-                        size_t pos;
-                        std::stoll(value, &pos);
-                        if (pos != value.size()) {
-                            throw std::invalid_argument("");
-                        }
-                    } catch (...) {
-                        errors.emplace_back(
-                            static_cast<int>(rowIdx + 1), 
-                            static_cast<int>(colIdx),
-                            "Invalid integer value: '" + value + "'"
-                        );
-                    }
-                } else if (type == "double" && !value.empty()) {
-                    try {
-                        size_t pos;
-                        std::stod(value, &pos);
-                        if (pos != value.size()) {
-                            throw std::invalid_argument("");
-                        }
-                    } catch (...) {
-                        errors.emplace_back(
-                            static_cast<int>(rowIdx + 1), 
-                            static_cast<int>(colIdx),
-                            "Invalid numeric value: '" + value + "'"
-                        );
-                    }
-                } else if (type == "date" && !value.empty()) {
-                    std::tm tm = {};
-                    if (!tryParseDate(value, tm)) {
-                        errors.emplace_back(
-                            static_cast<int>(rowIdx + 1), 
-                            static_cast<int>(colIdx),
-                            "Invalid date value: '" + value + "'"
-                        );
-                    }
-                }
-            }
-        }
-    }
-    
-    return errors.empty();
-}
-
-std::vector<ValidationError> CSVProcessor::getValidationErrors() const {
+std::vector<ValidationError> CSVProcessor::validateInternal() const {
     std::vector<ValidationError> errors;
     
     // 检查必需列
@@ -309,6 +246,14 @@ std::vector<ValidationError> CSVProcessor::getValidationErrors() const {
     }
     
     return errors;
+}
+
+bool CSVProcessor::validate() const {
+    return validateInternal().empty();
+}
+
+std::vector<ValidationError> CSVProcessor::getValidationErrors() const {
+    return validateInternal();
 }
 
 // 数据清洗 - 去除空白
