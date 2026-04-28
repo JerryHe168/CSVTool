@@ -1322,6 +1322,18 @@ std::string escapeSQL(const std::string& s) {
     return ss.str();
 }
 
+std::string escapeSQLIdentifier(const std::string& s) {
+    std::ostringstream ss;
+    for (char c : s) {
+        if (c == '`') {
+            ss << "``";
+        } else {
+            ss << c;
+        }
+    }
+    return ss.str();
+}
+
 std::string escapeHTML(const std::string& s) {
     std::ostringstream ss;
     for (char c : s) {
@@ -1627,10 +1639,11 @@ std::string CSVProcessor::toHTML() const {
 
 std::string CSVProcessor::toSQL(const std::string& tableName) const {
     std::ostringstream ss;
+    std::string escapedTableName = escapeSQLIdentifier(tableName);
     
-    ss << "CREATE TABLE IF NOT EXISTS " << tableName << " (\n";
+    ss << "CREATE TABLE IF NOT EXISTS `" << escapedTableName << "` (\n";
     for (size_t i = 0; i < m_header.size(); ++i) {
-        ss << "  `" << escapeSQL(m_header[i]) << "` TEXT";
+        ss << "  `" << escapeSQLIdentifier(m_header[i]) << "` TEXT";
         if (i < m_header.size() - 1) {
             ss << ",";
         }
@@ -1638,11 +1651,12 @@ std::string CSVProcessor::toSQL(const std::string& tableName) const {
     }
     ss << ");\n\n";
     
+    
     for (const auto& row : m_data) {
-        ss << "INSERT INTO " << tableName << " (";
+        ss << "INSERT INTO `" << escapedTableName << "` (";
         for (size_t i = 0; i < m_header.size(); ++i) {
             if (i > 0) ss << ", ";
-            ss << "`" << escapeSQL(m_header[i]) << "`";
+            ss << "`" << escapeSQLIdentifier(m_header[i]) << "`";
         }
         ss << ") VALUES (";
         
@@ -1660,12 +1674,12 @@ std::string CSVProcessor::toSQL(const std::string& tableName) const {
     return ss.str();
 }
 
-bool CSVProcessor::exportToFile(const std::string& filename, ExportFormat format) const {
-    return exportToFile(filename, format, m_header);
+bool CSVProcessor::exportToFile(const std::string& filename, ExportFormat format, const std::string& tableName) const {
+    return exportToFile(filename, format, m_header, tableName);
 }
 
 bool CSVProcessor::exportToFile(const std::string& filename, ExportFormat format, 
-                                 const std::vector<std::string>& columns) const {
+                                 const std::vector<std::string>& columns, const std::string& tableName) const {
     CSVProcessor temp;
     temp.m_delimiter = m_delimiter;
     temp.m_header = columns;
@@ -1711,14 +1725,17 @@ bool CSVProcessor::exportToFile(const std::string& filename, ExportFormat format
             break;
         case ExportFormat::SQL:
             {
-                size_t lastDot = filename.find_last_of(".");
-                std::string baseName = "data";
-                if (lastDot != std::string::npos && lastDot > 0) {
-                    size_t lastSep = filename.find_last_of("/\\");
-                    size_t start = (lastSep == std::string::npos) ? 0 : lastSep + 1;
-                    baseName = filename.substr(start, lastDot - start);
+                std::string actualTableName = tableName;
+                if (actualTableName.empty()) {
+                    size_t lastDot = filename.find_last_of(".");
+                    actualTableName = "data";
+                    if (lastDot != std::string::npos && lastDot > 0) {
+                        size_t lastSep = filename.find_last_of("/\\");
+                        size_t start = (lastSep == std::string::npos) ? 0 : lastSep + 1;
+                        actualTableName = filename.substr(start, lastDot - start);
+                    }
                 }
-                content = temp.toSQL(baseName);
+                content = temp.toSQL(actualTableName);
             }
             break;
     }

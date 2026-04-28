@@ -415,11 +415,17 @@ int main(int argc, char* argv[]) {
                     }
                 }
                 
+                std::string tableName;
+                auto tableIt = cmd.options.find("table");
+                if (tableIt != cmd.options.end()) {
+                    tableName = tableIt->second;
+                }
+                
                 bool success;
                 if (columns.empty()) {
-                    success = processor.exportToFile(outputFile, format);
+                    success = processor.exportToFile(outputFile, format, tableName);
                 } else {
-                    success = processor.exportToFile(outputFile, format, columns);
+                    success = processor.exportToFile(outputFile, format, columns, tableName);
                 }
                 
                 if (success) {
