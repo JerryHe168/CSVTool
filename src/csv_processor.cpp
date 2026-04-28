@@ -92,9 +92,9 @@ bool CSVProcessor::write(const std::string& filename, char delimiter) const {
     
     // 写入数据
     for (const auto& row : m_data) {
-        for (size_t i = 0; i < row.size(); ++i) {
+        for (size_t i = 0; i < m_header.size(); ++i) {
             if (i > 0) file << delimiter;
-            if (i < m_header.size()) {
+            if (i < row.size()) {
                 file << formatCSVField(row[i]);
             }
         }
