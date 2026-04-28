@@ -860,4 +860,347 @@ void CSVProcessor::clearValidationRules() {
     m_columnTypes.clear();
 }
 
+namespace {
+
+// 简单的表达式解析器
+// 支持的操作符：+、-、*、/
+// 支持的操作数：列名、数字（整数或小数）
+// 示例："Age + 10"、"Price * Quantity"、"col1 + col2 - col3"
+
+struct ExpressionToken {
+    enum Type { OPERATOR, COLUMN, NUMBER, INVALID } type;
+    std::string value;
+    double numValue;
+    char op;
+};
+
+std::vector<ExpressionToken> tokenizeExpression(const std::string& expr) {
+    std::vector<ExpressionToken> tokens;
+    std::string current;
+    bool inQuotes = false;
+    
+    for (size_t i = 0; i < expr.size(); ++i) {
+        char c = expr[i];
+        
+        if (std::isspace(static_cast<unsigned char>(c))) {
+            continue;
+        }
+        
+        // 操作符
+        if (c == '+' || c == '-' || c == '*' || c == '/') {
+            if (!current.empty()) {
+                ExpressionToken tok;
+                // 尝试解析为数字
+                try {
+                    size_t pos;
+                    double num = std::stod(current, &pos);
+                    if (pos == current.size()) {
+                        tok.type = ExpressionToken::NUMBER;
+                        tok.numValue = num;
+                    } else {
+                        tok.type = ExpressionToken::COLUMN;
+                        tok.value = current;
+                    }
+                } catch (...) {
+                    tok.type = ExpressionToken::COLUMN;
+                    tok.value = current;
+                }
+                tokens.push_back(tok);
+                current.clear();
+            }
+            
+            ExpressionToken opTok;
+            opTok.type = ExpressionToken::OPERATOR;
+            opTok.op = c;
+            tokens.push_back(opTok);
+        }
+        else {
+            current += c;
+        }
+    }
+    
+    // 处理最后一个 token
+    if (!current.empty()) {
+        ExpressionToken tok;
+        try {
+            size_t pos;
+            double num = std::stod(current, &pos);
+            if (pos == current.size()) {
+                tok.type = ExpressionToken::NUMBER;
+                tok.numValue = num;
+            } else {
+                tok.type = ExpressionToken::COLUMN;
+                tok.value = current;
+            }
+        } catch (...) {
+            tok.type = ExpressionToken::COLUMN;
+            tok.value = current;
+        }
+        tokens.push_back(tok);
+    }
+    
+    return tokens;
+}
+
+// 简单的表达式求值（从左到右，不考虑优先级）
+double evaluateExpression(const std::vector<ExpressionToken>& tokens, 
+                          const std::vector<std::string>& row,
+                          const std::vector<std::string>& header) {
+    if (tokens.empty()) {
+        return 0.0;
+    }
+    
+    double result = 0.0;
+    char lastOp = 0;
+    bool firstValue = true;
+    
+    for (const auto& tok : tokens) {
+        if (tok.type == ExpressionToken::OPERATOR) {
+            lastOp = tok.op;
+        } else {
+            double value = 0.0;
+            
+            if (tok.type == ExpressionToken::NUMBER) {
+                value = tok.numValue;
+            } else if (tok.type == ExpressionToken::COLUMN) {
+                // 查找列
+                int colIdx = -1;
+                for (size_t i = 0; i < header.size(); ++i) {
+                    if (header[i] == tok.value) {
+                        colIdx = static_cast<int>(i);
+                        break;
+                    }
+                }
+                
+                if (colIdx < 0) {
+                    throw std::runtime_error("Column not found: " + tok.value);
+                }
+                
+                if (static_cast<size_t>(colIdx) >= row.size()) {
+                    throw std::runtime_error("Row missing value for column: " + tok.value);
+                }
+                
+                const std::string& cellValue = row[colIdx];
+                if (cellValue.empty()) {
+                    throw std::runtime_error("Empty value in column: " + tok.value);
+                }
+                
+                try {
+                    size_t pos;
+                    value = std::stod(cellValue, &pos);
+                    if (pos != cellValue.size()) {
+                        throw std::runtime_error("Invalid numeric value: " + cellValue);
+                    }
+                } catch (const std::invalid_argument&) {
+                    throw std::runtime_error("Invalid numeric value: " + cellValue);
+                }
+            }
+            
+            if (firstValue) {
+                result = value;
+                firstValue = false;
+            } else {
+                switch (lastOp) {
+                    case '+': result += value; break;
+                    case '-': result -= value; break;
+                    case '*': result *= value; break;
+                    case '/': 
+                        if (value == 0.0) {
+                            throw std::runtime_error("Division by zero");
+                        }
+                        result /= value; 
+                        break;
+                    default:
+                        throw std::runtime_error("Invalid operator");
+                }
+            }
+        }
+    }
+    
+    return result;
+}
+
+} // 匿名命名空间
+
+// 计算列功能
+bool CSVProcessor::addCalculatedColumn(const std::string& newColumnName, const std::string& expression) {
+    return addCalculatedColumn(static_cast<int>(m_header.size()), newColumnName, expression);
+}
+
+bool CSVProcessor::addCalculatedColumn(int position, const std::string& newColumnName, const std::string& expression) {
+    if (position < 0 || static_cast<size_t>(position) > m_header.size()) {
+        return false;
+    }
+    
+    // 先解析表达式，验证语法
+    std::vector<ExpressionToken> tokens = tokenizeExpression(expression);
+    if (tokens.empty()) {
+        std::cerr << "Error: Empty or invalid expression" << std::endl;
+        return false;
+    }
+    
+    // 验证表达式中的列名是否存在
+    for (const auto& tok : tokens) {
+        if (tok.type == ExpressionToken::COLUMN) {
+            bool found = false;
+            for (const auto& h : m_header) {
+                if (h == tok.value) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                std::cerr << "Error: Column not found in expression: " << tok.value << std::endl;
+                return false;
+            }
+        }
+    }
+    
+    // 计算每一行的值
+    std::vector<std::string> newColumn;
+    bool hasError = false;
+    
+    for (size_t rowIdx = 0; rowIdx < m_data.size(); ++rowIdx) {
+        const auto& row = m_data[rowIdx];
+        try {
+            double result = evaluateExpression(tokens, row, m_header);
+            std::ostringstream ss;
+            ss << result;
+            newColumn.push_back(ss.str());
+        } catch (const std::exception& e) {
+            std::cerr << "Error calculating row " << (rowIdx + 1) << ": " << e.what() << std::endl;
+            newColumn.push_back("");
+            hasError = true;
+        }
+    }
+    
+    // 插入新列
+    m_header.insert(m_header.begin() + position, newColumnName);
+    
+    for (size_t i = 0; i < m_data.size(); ++i) {
+        if (static_cast<size_t>(position) <= m_data[i].size()) {
+            m_data[i].insert(m_data[i].begin() + position, newColumn[i]);
+        } else {
+            while (m_data[i].size() < static_cast<size_t>(position)) {
+                m_data[i].push_back("");
+            }
+            m_data[i].push_back(newColumn[i]);
+        }
+    }
+    
+    if (hasError) {
+        std::cerr << "Warning: Some rows had calculation errors" << std::endl;
+    }
+    
+    return true;
+}
+
+// 统计功能
+ColumnStatistics CSVProcessor::calculateStatistics(const std::string& columnName) const {
+    int idx = getColumnIndex(columnName);
+    if (idx < 0) {
+        ColumnStatistics stats;
+        stats.columnName = columnName;
+        return stats;
+    }
+    return calculateStatistics(idx);
+}
+
+ColumnStatistics CSVProcessor::calculateStatistics(int columnIndex) const {
+    ColumnStatistics stats;
+    
+    if (columnIndex < 0 || static_cast<size_t>(columnIndex) >= m_header.size()) {
+        return stats;
+    }
+    
+    stats.columnName = m_header[columnIndex];
+    stats.totalRows = m_data.size();
+    
+    double minVal = 0.0;
+    double maxVal = 0.0;
+    double sumVal = 0.0;
+    size_t validCount = 0;
+    bool firstValue = true;
+    
+    for (const auto& row : m_data) {
+        if (static_cast<size_t>(columnIndex) >= row.size()) {
+            continue;
+        }
+        
+        const std::string& value = row[columnIndex];
+        if (value.empty() || isMissingValue(value)) {
+            continue;
+        }
+        
+        try {
+            size_t pos;
+            double num = std::stod(value, &pos);
+            if (pos != value.size()) {
+                continue;
+            }
+            
+            if (firstValue) {
+                minVal = num;
+                maxVal = num;
+                firstValue = false;
+            } else {
+                if (num < minVal) minVal = num;
+                if (num > maxVal) maxVal = num;
+            }
+            
+            sumVal += num;
+            validCount++;
+        } catch (...) {
+            // 不是数值，跳过
+            continue;
+        }
+    }
+    
+    stats.validNumericRows = validCount;
+    stats.hasValidData = (validCount > 0);
+    
+    if (stats.hasValidData) {
+        stats.min = minVal;
+        stats.max = maxVal;
+        stats.sum = sumVal;
+        stats.average = sumVal / static_cast<double>(validCount);
+    }
+    
+    return stats;
+}
+
+std::map<std::string, ColumnStatistics> CSVProcessor::calculateAllStatistics() const {
+    std::map<std::string, ColumnStatistics> result;
+    
+    for (const auto& colName : m_header) {
+        result[colName] = calculateStatistics(colName);
+    }
+    
+    return result;
+}
+
+void CSVProcessor::printStatistics(const std::string& columnName) const {
+    ColumnStatistics stats = calculateStatistics(columnName);
+    
+    std::cout << "Statistics for column: " << stats.columnName << std::endl;
+    std::cout << "  Total rows: " << stats.totalRows << std::endl;
+    std::cout << "  Valid numeric rows: " << stats.validNumericRows << std::endl;
+    
+    if (stats.hasValidData) {
+        std::cout << "  Minimum: " << stats.min << std::endl;
+        std::cout << "  Maximum: " << stats.max << std::endl;
+        std::cout << "  Sum: " << stats.sum << std::endl;
+        std::cout << "  Average: " << stats.average << std::endl;
+    } else {
+        std::cout << "  No valid numeric data found" << std::endl;
+    }
+}
+
+void CSVProcessor::printAllStatistics() const {
+    for (const auto& colName : m_header) {
+        printStatistics(colName);
+        std::cout << std::endl;
+    }
+}
+
 } // namespace csvtool
