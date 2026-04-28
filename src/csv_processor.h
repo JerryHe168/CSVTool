@@ -1,6 +1,10 @@
 #ifndef CSV_PROCESSOR_H
 #define CSV_PROCESSOR_H
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
 #include <string>
 #include <vector>
 #include <map>
@@ -28,14 +32,14 @@ struct ColumnStatistics {
     std::string columnName;
     size_t totalRows;
     size_t validNumericRows;
-    double min;
-    double max;
+    double minValue;
+    double maxValue;
     double sum;
     double average;
     bool hasValidData;
     
     ColumnStatistics() 
-        : totalRows(0), validNumericRows(0), min(0.0), max(0.0), sum(0.0), average(0.0), hasValidData(false) {}
+        : totalRows(0), validNumericRows(0), minValue(0.0), maxValue(0.0), sum(0.0), average(0.0), hasValidData(false) {}
 };
 
 class CSVProcessor {

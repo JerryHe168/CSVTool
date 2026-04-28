@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Set UTF-8 encoding for MSVC
 if(MSVC)
     add_compile_options(/utf-8)
+    add_definitions(-DNOMINMAX)
 endif()
 
 # Include directories

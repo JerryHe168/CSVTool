@@ -1,0 +1,33 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="16.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="D:\workspace\兼职项目\4.Solo Coder\CSVTool - 副本\src\main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\workspace\兼职项目\4.Solo Coder\CSVTool - 副本\src\csv_processor.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\workspace\兼职项目\4.Solo Coder\CSVTool - 副本\src\command_parser.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="D:\workspace\兼职项目\4.Solo Coder\CSVTool - 副本\src\csv_processor.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\workspace\兼职项目\4.Solo Coder\CSVTool - 副本\src\command_parser.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="D:\workspace\兼职项目\4.Solo Coder\CSVTool - 副本\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{E852DA31-9461-3EAA-8BA6-65B32B48C3ED}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{3ED1943D-3D1A-3785-825A-88E1D5C62407}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
