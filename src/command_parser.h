@@ -37,7 +37,6 @@ private:
     bool m_helpFlag;
     bool m_versionFlag;
     
-    bool parseOption(const std::string& arg, const std::string& nextArg, bool& hasNextArg);
     Command parseCommand(const std::vector<std::string>& tokens);
     bool isCommand(const std::string& token) const;
     
