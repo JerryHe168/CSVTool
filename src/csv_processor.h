@@ -139,8 +139,8 @@ public:
     void filterByRegex(const std::string& pattern, bool caseSensitive = true);
     
     // 数据导出
-    bool exportToFile(const std::string& filename, ExportFormat format) const;
-    bool exportToFile(const std::string& filename, ExportFormat format, const std::vector<std::string>& columns) const;
+    bool exportToFile(const std::string& filename, ExportFormat format, const std::string& tableName = "") const;
+    bool exportToFile(const std::string& filename, ExportFormat format, const std::vector<std::string>& columns, const std::string& tableName = "") const;
     
     std::string toCSV() const;
     std::string toJSON() const;
