@@ -862,16 +862,20 @@ void CSVProcessor::clearValidationRules() {
 
 namespace {
 
-// 简单的表达式解析器
-// 支持的操作符：+、-、*、/
-// 支持的操作数：列名、数字（整数或小数）
-// 示例："Age + 10"、"Price * Quantity"、"col1 + col2 - col3"
+enum TokenType {
+    TOKEN_OPERATOR,
+    TOKEN_COLUMN,
+    TOKEN_NUMBER,
+    TOKEN_INVALID
+};
 
 struct ExpressionToken {
-    enum Type { OPERATOR, COLUMN, NUMBER, INVALID } type;
+    TokenType type;
     std::string value;
     double numValue;
     char op;
+    
+    ExpressionToken() : type(TOKEN_INVALID), numValue(0.0), op(0) {}
 };
 
 std::vector<ExpressionToken> tokenizeExpression(const std::string& expr) {
@@ -895,14 +899,14 @@ std::vector<ExpressionToken> tokenizeExpression(const std::string& expr) {
                     size_t pos;
                     double num = std::stod(current, &pos);
                     if (pos == current.size()) {
-                        tok.type = ExpressionToken::NUMBER;
+                        tok.type = TOKEN_NUMBER;
                         tok.numValue = num;
                     } else {
-                        tok.type = ExpressionToken::COLUMN;
+                        tok.type = TOKEN_COLUMN;
                         tok.value = current;
                     }
                 } catch (...) {
-                    tok.type = ExpressionToken::COLUMN;
+                    tok.type = TOKEN_COLUMN;
                     tok.value = current;
                 }
                 tokens.push_back(tok);
@@ -910,7 +914,7 @@ std::vector<ExpressionToken> tokenizeExpression(const std::string& expr) {
             }
             
             ExpressionToken opTok;
-            opTok.type = ExpressionToken::OPERATOR;
+            opTok.type = TOKEN_OPERATOR;
             opTok.op = c;
             tokens.push_back(opTok);
         }
@@ -926,14 +930,14 @@ std::vector<ExpressionToken> tokenizeExpression(const std::string& expr) {
             size_t pos;
             double num = std::stod(current, &pos);
             if (pos == current.size()) {
-                tok.type = ExpressionToken::NUMBER;
+                tok.type = TOKEN_NUMBER;
                 tok.numValue = num;
             } else {
-                tok.type = ExpressionToken::COLUMN;
+                tok.type = TOKEN_COLUMN;
                 tok.value = current;
             }
         } catch (...) {
-            tok.type = ExpressionToken::COLUMN;
+            tok.type = TOKEN_COLUMN;
             tok.value = current;
         }
         tokens.push_back(tok);
@@ -955,14 +959,14 @@ double evaluateExpression(const std::vector<ExpressionToken>& tokens,
     bool firstValue = true;
     
     for (const auto& tok : tokens) {
-        if (tok.type == ExpressionToken::OPERATOR) {
+        if (tok.type == TOKEN_OPERATOR) {
             lastOp = tok.op;
         } else {
             double value = 0.0;
             
-            if (tok.type == ExpressionToken::NUMBER) {
+            if (tok.type == TOKEN_NUMBER) {
                 value = tok.numValue;
-            } else if (tok.type == ExpressionToken::COLUMN) {
+            } else if (tok.type == TOKEN_COLUMN) {
                 // 查找列
                 int colIdx = -1;
                 for (size_t i = 0; i < header.size(); ++i) {
@@ -1041,7 +1045,7 @@ bool CSVProcessor::addCalculatedColumn(int position, const std::string& newColum
     
     // 验证表达式中的列名是否存在
     for (const auto& tok : tokens) {
-        if (tok.type == ExpressionToken::COLUMN) {
+        if (tok.type == TOKEN_COLUMN) {
             bool found = false;
             for (const auto& h : m_header) {
                 if (h == tok.value) {
@@ -1160,8 +1164,8 @@ ColumnStatistics CSVProcessor::calculateStatistics(int columnIndex) const {
     stats.hasValidData = (validCount > 0);
     
     if (stats.hasValidData) {
-        stats.min = minVal;
-        stats.max = maxVal;
+        stats.minValue = minVal;
+        stats.maxValue = maxVal;
         stats.sum = sumVal;
         stats.average = sumVal / static_cast<double>(validCount);
     }
@@ -1187,8 +1191,8 @@ void CSVProcessor::printStatistics(const std::string& columnName) const {
     std::cout << "  Valid numeric rows: " << stats.validNumericRows << std::endl;
     
     if (stats.hasValidData) {
-        std::cout << "  Minimum: " << stats.min << std::endl;
-        std::cout << "  Maximum: " << stats.max << std::endl;
+        std::cout << "  Minimum: " << stats.minValue << std::endl;
+        std::cout << "  Maximum: " << stats.maxValue << std::endl;
         std::cout << "  Sum: " << stats.sum << std::endl;
         std::cout << "  Average: " << stats.average << std::endl;
     } else {
