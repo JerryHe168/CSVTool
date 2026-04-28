@@ -1207,4 +1207,532 @@ void CSVProcessor::printAllStatistics() const {
     }
 }
 
+namespace {
+
+std::string toLower(const std::string& s) {
+    std::string result;
+    for (char c : s) {
+        result += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+    return result;
+}
+
+bool compareNumericValues(const std::string& a, const std::string& b, FilterOperator op) {
+    try {
+        double numA = std::stod(a);
+        double numB = std::stod(b);
+        
+        switch (op) {
+            case FilterOperator::EQUALS:
+                return numA == numB;
+            case FilterOperator::NOT_EQUALS:
+                return numA != numB;
+            case FilterOperator::GREATER_THAN:
+                return numA > numB;
+            case FilterOperator::LESS_THAN:
+                return numA < numB;
+            case FilterOperator::GREATER_OR_EQUAL:
+                return numA >= numB;
+            case FilterOperator::LESS_OR_EQUAL:
+                return numA <= numB;
+            default:
+                return false;
+        }
+    } catch (...) {
+        return false;
+    }
+}
+
+bool matchCondition(const std::string& cellValue, FilterOperator op, 
+                    const std::string& filterValue, bool caseSensitive) {
+    std::string a = caseSensitive ? cellValue : toLower(cellValue);
+    std::string b = caseSensitive ? filterValue : toLower(filterValue);
+    
+    switch (op) {
+        case FilterOperator::EQUALS:
+            return a == b;
+        case FilterOperator::NOT_EQUALS:
+            return a != b;
+        case FilterOperator::CONTAINS:
+            return a.find(b) != std::string::npos;
+        case FilterOperator::NOT_CONTAINS:
+            return a.find(b) == std::string::npos;
+        case FilterOperator::STARTS_WITH:
+            return a.size() >= b.size() && a.substr(0, b.size()) == b;
+        case FilterOperator::ENDS_WITH:
+            return a.size() >= b.size() && a.substr(a.size() - b.size()) == b;
+        case FilterOperator::GREATER_THAN:
+        case FilterOperator::LESS_THAN:
+        case FilterOperator::GREATER_OR_EQUAL:
+        case FilterOperator::LESS_OR_EQUAL:
+            return compareNumericValues(a, b, op);
+        case FilterOperator::REGEX_MATCH:
+            try {
+                std::regex::flag_type flags = caseSensitive ? 
+                    std::regex::ECMAScript : std::regex::icase;
+                std::regex re(filterValue, flags);
+                return std::regex_match(cellValue, re);
+            } catch (...) {
+                return false;
+            }
+        default:
+            return false;
+    }
+}
+
+std::string escapeJSON(const std::string& s) {
+    std::ostringstream ss;
+    for (char c : s) {
+        switch (c) {
+            case '"': ss << "\\\""; break;
+            case '\\': ss << "\\\\"; break;
+            case '\n': ss << "\\n"; break;
+            case '\r': ss << "\\r"; break;
+            case '\t': ss << "\\t"; break;
+            default: ss << c; break;
+        }
+    }
+    return ss.str();
+}
+
+std::string escapeXML(const std::string& s) {
+    std::ostringstream ss;
+    for (char c : s) {
+        switch (c) {
+            case '&': ss << "&amp;"; break;
+            case '<': ss << "&lt;"; break;
+            case '>': ss << "&gt;"; break;
+            case '"': ss << "&quot;"; break;
+            case '\'': ss << "&apos;"; break;
+            default: ss << c; break;
+        }
+    }
+    return ss.str();
+}
+
+std::string escapeSQL(const std::string& s) {
+    std::ostringstream ss;
+    for (char c : s) {
+        if (c == '\'') {
+            ss << "''";
+        } else {
+            ss << c;
+        }
+    }
+    return ss.str();
+}
+
+std::string escapeHTML(const std::string& s) {
+    std::ostringstream ss;
+    for (char c : s) {
+        switch (c) {
+            case '&': ss << "&amp;"; break;
+            case '<': ss << "&lt;"; break;
+            case '>': ss << "&gt;"; break;
+            case '"': ss << "&quot;"; break;
+            default: ss << c; break;
+        }
+    }
+    return ss.str();
+}
+
+std::string formatValueForSQL(const std::string& value) {
+    if (value.empty()) {
+        return "NULL";
+    }
+    
+    try {
+        size_t pos;
+        std::stod(value, &pos);
+        if (pos == value.size()) {
+            return value;
+        }
+    } catch (...) {
+    }
+    
+    return "'" + escapeSQL(value) + "'";
+}
+
+} // 匿名命名空间
+
+void CSVProcessor::filter(const FilterCondition& condition) {
+    int colIdx = getColumnIndex(condition.columnName);
+    if (colIdx < 0) {
+        std::cerr << "Warning: Column not found: " << condition.columnName << std::endl;
+        return;
+    }
+    
+    std::vector<std::vector<std::string>> newData;
+    
+    for (const auto& row : m_data) {
+        if (static_cast<size_t>(colIdx) >= row.size()) {
+            continue;
+        }
+        
+        const std::string& cellValue = row[colIdx];
+        
+        if (matchCondition(cellValue, condition.op, condition.value, condition.caseSensitive)) {
+            newData.push_back(row);
+        }
+    }
+    
+    size_t removed = m_data.size() - newData.size();
+    m_data = newData;
+    
+    std::cout << "  Filtered by " << condition.columnName 
+              << ", removed " << removed << " rows" << std::endl;
+}
+
+void CSVProcessor::filter(const std::vector<FilterCondition>& conditions, bool matchAll) {
+    std::vector<std::vector<std::string>> newData;
+    
+    for (const auto& row : m_data) {
+        bool matches = matchAll;
+        
+        for (const auto& cond : conditions) {
+            int colIdx = getColumnIndex(cond.columnName);
+            if (colIdx < 0) {
+                if (matchAll) {
+                    matches = false;
+                    break;
+                }
+                continue;
+            }
+            
+            if (static_cast<size_t>(colIdx) >= row.size()) {
+                if (matchAll) {
+                    matches = false;
+                    break;
+                }
+                continue;
+            }
+            
+            const std::string& cellValue = row[colIdx];
+            bool rowMatches = matchCondition(cellValue, cond.op, cond.value, cond.caseSensitive);
+            
+            if (matchAll) {
+                if (!rowMatches) {
+                    matches = false;
+                    break;
+                }
+            } else {
+                if (rowMatches) {
+                    matches = true;
+                    break;
+                }
+            }
+        }
+        
+        if (matches) {
+            newData.push_back(row);
+        }
+    }
+    
+    size_t removed = m_data.size() - newData.size();
+    m_data = newData;
+    
+    std::cout << "  Applied " << conditions.size() << " filter conditions" 
+              << ", removed " << removed << " rows" << std::endl;
+}
+
+void CSVProcessor::filterByRegex(const std::string& columnName, const std::string& pattern, bool caseSensitive) {
+    FilterCondition cond;
+    cond.columnName = columnName;
+    cond.op = FilterOperator::REGEX_MATCH;
+    cond.value = pattern;
+    cond.caseSensitive = caseSensitive;
+    filter(cond);
+}
+
+void CSVProcessor::filterByRegex(const std::string& pattern, bool caseSensitive) {
+    std::vector<std::vector<std::string>> newData;
+    
+    for (const auto& row : m_data) {
+        bool matches = false;
+        
+        for (const auto& cellValue : row) {
+            try {
+                std::regex::flag_type flags = caseSensitive ? 
+                    std::regex::ECMAScript : std::regex::icase;
+                std::regex re(pattern, flags);
+                if (std::regex_match(cellValue, re)) {
+                    matches = true;
+                    break;
+                }
+            } catch (...) {
+            }
+        }
+        
+        if (matches) {
+            newData.push_back(row);
+        }
+    }
+    
+    size_t removed = m_data.size() - newData.size();
+    m_data = newData;
+    
+    std::cout << "  Filtered by regex (all columns)" 
+              << ", removed " << removed << " rows" << std::endl;
+}
+
+std::string CSVProcessor::toCSV() const {
+    std::ostringstream ss;
+    
+    for (size_t i = 0; i < m_header.size(); ++i) {
+        if (i > 0) ss << m_delimiter;
+        ss << formatCSVField(m_header[i]);
+    }
+    ss << '\n';
+    
+    for (const auto& row : m_data) {
+        for (size_t i = 0; i < m_header.size(); ++i) {
+            if (i > 0) ss << m_delimiter;
+            if (i < row.size()) {
+                ss << formatCSVField(row[i]);
+            }
+        }
+        ss << '\n';
+    }
+    
+    return ss.str();
+}
+
+std::string CSVProcessor::toJSON() const {
+    std::ostringstream ss;
+    ss << "[\n";
+    
+    for (size_t rowIdx = 0; rowIdx < m_data.size(); ++rowIdx) {
+        const auto& row = m_data[rowIdx];
+        ss << "  {\n";
+        
+        for (size_t colIdx = 0; colIdx < m_header.size(); ++colIdx) {
+            ss << "    \"" << escapeJSON(m_header[colIdx]) << "\": ";
+            if (colIdx < row.size()) {
+                ss << "\"" << escapeJSON(row[colIdx]) << "\"";
+            } else {
+                ss << "null";
+            }
+            if (colIdx < m_header.size() - 1) {
+                ss << ",";
+            }
+            ss << "\n";
+        }
+        
+        ss << "  }";
+        if (rowIdx < m_data.size() - 1) {
+            ss << ",";
+        }
+        ss << "\n";
+    }
+    
+    ss << "]";
+    return ss.str();
+}
+
+std::string CSVProcessor::toXML() const {
+    std::ostringstream ss;
+    ss << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+    ss << "<data>\n";
+    
+    for (const auto& row : m_data) {
+        ss << "  <row>\n";
+        
+        for (size_t colIdx = 0; colIdx < m_header.size(); ++colIdx) {
+            ss << "    <" << escapeXML(m_header[colIdx]) << ">";
+            if (colIdx < row.size()) {
+                ss << escapeXML(row[colIdx]);
+            }
+            ss << "</" << escapeXML(m_header[colIdx]) << ">\n";
+        }
+        
+        ss << "  </row>\n";
+    }
+    
+    ss << "</data>";
+    return ss.str();
+}
+
+std::string CSVProcessor::toMarkdown() const {
+    std::ostringstream ss;
+    
+    for (size_t i = 0; i < m_header.size(); ++i) {
+        if (i > 0) ss << " | ";
+        ss << m_header[i];
+    }
+    ss << "\n";
+    
+    for (size_t i = 0; i < m_header.size(); ++i) {
+        if (i > 0) ss << " | ";
+        ss << "---";
+    }
+    ss << "\n";
+    
+    for (const auto& row : m_data) {
+        for (size_t i = 0; i < m_header.size(); ++i) {
+            if (i > 0) ss << " | ";
+            if (i < row.size()) {
+                ss << row[i];
+            }
+        }
+        ss << "\n";
+    }
+    
+    return ss.str();
+}
+
+std::string CSVProcessor::toHTML() const {
+    std::ostringstream ss;
+    ss << "<!DOCTYPE html>\n";
+    ss << "<html>\n";
+    ss << "<head>\n";
+    ss << "  <meta charset=\"UTF-8\">\n";
+    ss << "  <title>CSV Data</title>\n";
+    ss << "  <style>\n";
+    ss << "    table { border-collapse: collapse; width: 100%; }\n";
+    ss << "    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\n";
+    ss << "    th { background-color: #4CAF50; color: white; }\n";
+    ss << "    tr:nth-child(even) { background-color: #f2f2f2; }\n";
+    ss << "  </style>\n";
+    ss << "</head>\n";
+    ss << "<body>\n";
+    ss << "  <table>\n";
+    
+    ss << "    <thead>\n";
+    ss << "      <tr>\n";
+    for (const auto& h : m_header) {
+        ss << "        <th>" << escapeHTML(h) << "</th>\n";
+    }
+    ss << "      </tr>\n";
+    ss << "    </thead>\n";
+    
+    ss << "    <tbody>\n";
+    for (const auto& row : m_data) {
+        ss << "      <tr>\n";
+        for (size_t i = 0; i < m_header.size(); ++i) {
+            ss << "        <td>";
+            if (i < row.size()) {
+                ss << escapeHTML(row[i]);
+            }
+            ss << "</td>\n";
+        }
+        ss << "      </tr>\n";
+    }
+    ss << "    </tbody>\n";
+    
+    ss << "  </table>\n";
+    ss << "</body>\n";
+    ss << "</html>";
+    return ss.str();
+}
+
+std::string CSVProcessor::toSQL(const std::string& tableName) const {
+    std::ostringstream ss;
+    
+    ss << "CREATE TABLE IF NOT EXISTS " << tableName << " (\n";
+    for (size_t i = 0; i < m_header.size(); ++i) {
+        ss << "  `" << escapeSQL(m_header[i]) << "` TEXT";
+        if (i < m_header.size() - 1) {
+            ss << ",";
+        }
+        ss << "\n";
+    }
+    ss << ");\n\n";
+    
+    for (const auto& row : m_data) {
+        ss << "INSERT INTO " << tableName << " (";
+        for (size_t i = 0; i < m_header.size(); ++i) {
+            if (i > 0) ss << ", ";
+            ss << "`" << escapeSQL(m_header[i]) << "`";
+        }
+        ss << ") VALUES (";
+        
+        for (size_t i = 0; i < m_header.size(); ++i) {
+            if (i > 0) ss << ", ";
+            if (i < row.size()) {
+                ss << formatValueForSQL(row[i]);
+            } else {
+                ss << "NULL";
+            }
+        }
+        ss << ");\n";
+    }
+    
+    return ss.str();
+}
+
+bool CSVProcessor::exportToFile(const std::string& filename, ExportFormat format) const {
+    return exportToFile(filename, format, m_header);
+}
+
+bool CSVProcessor::exportToFile(const std::string& filename, ExportFormat format, 
+                                 const std::vector<std::string>& columns) const {
+    CSVProcessor temp;
+    temp.m_delimiter = m_delimiter;
+    temp.m_header = columns;
+    
+    std::vector<int> colIndices;
+    for (const auto& col : columns) {
+        int idx = getColumnIndex(col);
+        if (idx < 0) {
+            std::cerr << "Warning: Column not found: " << col << std::endl;
+            return false;
+        }
+        colIndices.push_back(idx);
+    }
+    
+    for (const auto& row : m_data) {
+        std::vector<std::string> newRow;
+        for (int idx : colIndices) {
+            if (static_cast<size_t>(idx) < row.size()) {
+                newRow.push_back(row[idx]);
+            } else {
+                newRow.push_back("");
+            }
+        }
+        temp.m_data.push_back(newRow);
+    }
+    
+    std::string content;
+    switch (format) {
+        case ExportFormat::CSV:
+            content = temp.toCSV();
+            break;
+        case ExportFormat::JSON:
+            content = temp.toJSON();
+            break;
+        case ExportFormat::XML:
+            content = temp.toXML();
+            break;
+        case ExportFormat::MARKDOWN:
+            content = temp.toMarkdown();
+            break;
+        case ExportFormat::HTML:
+            content = temp.toHTML();
+            break;
+        case ExportFormat::SQL:
+            {
+                size_t lastDot = filename.find_last_of(".");
+                std::string baseName = "data";
+                if (lastDot != std::string::npos && lastDot > 0) {
+                    size_t lastSep = filename.find_last_of("/\\");
+                    size_t start = (lastSep == std::string::npos) ? 0 : lastSep + 1;
+                    baseName = filename.substr(start, lastDot - start);
+                }
+                content = temp.toSQL(baseName);
+            }
+            break;
+    }
+    
+    std::ofstream file(filename, std::ios::binary);
+    if (!file.is_open()) {
+        std::cerr << "Error: Cannot open file " << filename << std::endl;
+        return false;
+    }
+    
+    file.write(content.data(), static_cast<std::streamsize>(content.size()));
+    file.close();
+    
+    return true;
+}
+
 } // namespace csvtool

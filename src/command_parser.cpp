@@ -18,7 +18,10 @@ const std::vector<std::string> CommandParser::s_commands = {
     "sort",
     "validate",
     "info",
-    "stats"
+    "stats",
+    "filter",
+    "filter-regex",
+    "export"
 };
 
 CommandParser::CommandParser() 
@@ -185,6 +188,27 @@ void CommandParser::printHelp() const {
     std::cout << "  sort COLUMN [--descending]        Sort by column (default: ascending)" << std::endl;
     std::cout << "  stats [--column NAME]             Show statistics (count, min, max, sum, avg)" << std::endl;
     std::cout << "                                    Without --column, shows stats for all columns" << std::endl;
+    std::cout << std::endl;
+    std::cout << "Filtering:" << std::endl;
+    std::cout << "  filter COLUMN OP VALUE [--case-insensitive]" << std::endl;
+    std::cout << "                                    Filter rows by condition" << std::endl;
+    std::cout << "                                    Operators: =, !=, >, <, >=, <=" << std::endl;
+    std::cout << "                                               contains, not-contains" << std::endl;
+    std::cout << "                                               starts-with, ends-with" << std::endl;
+    std::cout << "                                    Example: filter Age > 30" << std::endl;
+    std::cout << "                                             filter Name contains John" << std::endl;
+    std::cout << "  filter-regex COLUMN PATTERN [--case-insensitive]" << std::endl;
+    std::cout << "                                    Filter rows using regex pattern" << std::endl;
+    std::cout << "                                    Example: filter-regex Name \"^J.*\"" << std::endl;
+    std::cout << std::endl;
+    std::cout << "Export:" << std::endl;
+    std::cout << "  export --format=FORMAT [--columns=COL1,COL2] [--table=NAME]" << std::endl;
+    std::cout << "                                    Export to various formats" << std::endl;
+    std::cout << "                                    Formats: csv, json, xml, md, markdown, html, sql" << std::endl;
+    std::cout << "                                    --columns: Comma-separated list of columns to export" << std::endl;
+    std::cout << "                                    --table: Table name for SQL export (default: filename)" << std::endl;
+    std::cout << "                                    Example: export --format=json --columns=Name,Age" << std::endl;
+    std::cout << "                                             export --format=sql --table=users" << std::endl;
     std::cout << std::endl;
     std::cout << "Examples:" << std::endl;
     std::cout << "  csvtool -i data.csv info" << std::endl;
