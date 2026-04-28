@@ -61,9 +61,14 @@ int main(int argc, char* argv[]) {
         
         // 执行命令
         const std::vector<Command>& commands = parser.getCommands();
+        bool hasExportCommand = false;
         
         for (const Command& cmd : commands) {
             std::cout << "Executing command: " << cmd.name << std::endl;
+            
+            if (cmd.name == "export") {
+                hasExportCommand = true;
+            }
             
             if (cmd.name == "info") {
                 processor.printInfo();
@@ -288,13 +293,149 @@ int main(int argc, char* argv[]) {
                     processor.printAllStatistics();
                 }
             }
+            else if (cmd.name == "filter") {
+                if (cmd.args.size() < 3) {
+                    std::cerr << "Error: filter requires COLUMN OP VALUE" << std::endl;
+                    std::cerr << "       Operators: =, !=, >, <, >=, <=, contains, not-contains, starts-with, ends-with" << std::endl;
+                    return 1;
+                }
+                
+                std::string column = cmd.args[0];
+                std::string opStr = cmd.args[1];
+                std::string value = cmd.args[2];
+                
+                for (size_t i = 3; i < cmd.args.size(); ++i) {
+                    value += " " + cmd.args[i];
+                }
+                
+                FilterOperator op = FilterOperator::EQUALS;
+                if (opStr == "=" || opStr == "==") {
+                    op = FilterOperator::EQUALS;
+                } else if (opStr == "!=" || opStr == "<>") {
+                    op = FilterOperator::NOT_EQUALS;
+                } else if (opStr == ">") {
+                    op = FilterOperator::GREATER_THAN;
+                } else if (opStr == "<") {
+                    op = FilterOperator::LESS_THAN;
+                } else if (opStr == ">=") {
+                    op = FilterOperator::GREATER_OR_EQUAL;
+                } else if (opStr == "<=") {
+                    op = FilterOperator::LESS_OR_EQUAL;
+                } else if (opStr == "contains") {
+                    op = FilterOperator::CONTAINS;
+                } else if (opStr == "not-contains") {
+                    op = FilterOperator::NOT_CONTAINS;
+                } else if (opStr == "starts-with") {
+                    op = FilterOperator::STARTS_WITH;
+                } else if (opStr == "ends-with") {
+                    op = FilterOperator::ENDS_WITH;
+                } else {
+                    std::cerr << "Error: Unknown operator: " << opStr << std::endl;
+                    return 1;
+                }
+                
+                bool caseSensitive = true;
+                auto ciIt = cmd.options.find("case-insensitive");
+                if (ciIt != cmd.options.end()) {
+                    caseSensitive = false;
+                }
+                
+                FilterCondition condition;
+                condition.columnName = column;
+                condition.op = op;
+                condition.value = value;
+                condition.caseSensitive = caseSensitive;
+                
+                processor.filter(condition);
+            }
+            else if (cmd.name == "filter-regex") {
+                if (cmd.args.size() < 2) {
+                    std::cerr << "Error: filter-regex requires COLUMN PATTERN" << std::endl;
+                    return 1;
+                }
+                
+                std::string column = cmd.args[0];
+                std::string pattern = cmd.args[1];
+                for (size_t i = 2; i < cmd.args.size(); ++i) {
+                    pattern += " " + cmd.args[i];
+                }
+                
+                bool caseSensitive = true;
+                auto ciIt = cmd.options.find("case-insensitive");
+                if (ciIt != cmd.options.end()) {
+                    caseSensitive = false;
+                }
+                
+                processor.filterByRegex(column, pattern, caseSensitive);
+            }
+            else if (cmd.name == "export") {
+                std::string outputFile = parser.getOutputFile();
+                if (outputFile.empty()) {
+                    std::cerr << "Error: export requires an output file (use -o or --output)" << std::endl;
+                    return 1;
+                }
+                
+                auto formatIt = cmd.options.find("format");
+                if (formatIt == cmd.options.end()) {
+                    std::cerr << "Error: export requires --format option" << std::endl;
+                    std::cerr << "       Supported formats: csv, json, xml, md, markdown, html, sql" << std::endl;
+                    return 1;
+                }
+                
+                std::string formatStr = formatIt->second;
+                ExportFormat format = ExportFormat::CSV;
+                
+                if (formatStr == "csv") {
+                    format = ExportFormat::CSV;
+                } else if (formatStr == "json") {
+                    format = ExportFormat::JSON;
+                } else if (formatStr == "xml") {
+                    format = ExportFormat::XML;
+                } else if (formatStr == "md" || formatStr == "markdown") {
+                    format = ExportFormat::MARKDOWN;
+                } else if (formatStr == "html") {
+                    format = ExportFormat::HTML;
+                } else if (formatStr == "sql") {
+                    format = ExportFormat::SQL;
+                } else {
+                    std::cerr << "Error: Unknown export format: " << formatStr << std::endl;
+                    return 1;
+                }
+                
+                std::vector<std::string> columns;
+                auto colsIt = cmd.options.find("columns");
+                if (colsIt != cmd.options.end()) {
+                    std::string colsStr = colsIt->second;
+                    std::istringstream iss(colsStr);
+                    std::string col;
+                    while (std::getline(iss, col, ',')) {
+                        if (!col.empty()) {
+                            columns.push_back(col);
+                        }
+                    }
+                }
+                
+                bool success;
+                if (columns.empty()) {
+                    success = processor.exportToFile(outputFile, format);
+                } else {
+                    success = processor.exportToFile(outputFile, format, columns);
+                }
+                
+                if (success) {
+                    std::cout << "  Exported to " << outputFile << " in " << formatStr << " format" << std::endl;
+                } else {
+                    std::cerr << "Error: Failed to export" << std::endl;
+                    return 1;
+                }
+            }
             else {
                 std::cerr << "Warning: Unknown command: " << cmd.name << std::endl;
             }
         }
         
-        // 写入输出文件（如果指定）
-        if (!parser.getOutputFile().empty()) {
+        // 写入输出文件（如果指定且没有使用 export 命令）
+        if (!parser.getOutputFile().empty() && !hasExportCommand) {
             std::cout << "Writing to output file: " << parser.getOutputFile() << std::endl;
             if (!processor.write(parser.getOutputFile(), parser.getDelimiter())) {
                 std::cerr << "Error: Failed to write to output file." << std::endl;

@@ -42,6 +42,39 @@ struct ColumnStatistics {
         : totalRows(0), validNumericRows(0), minValue(0.0), maxValue(0.0), sum(0.0), average(0.0), hasValidData(false) {}
 };
 
+enum class FilterOperator {
+    EQUALS,
+    NOT_EQUALS,
+    GREATER_THAN,
+    LESS_THAN,
+    GREATER_OR_EQUAL,
+    LESS_OR_EQUAL,
+    CONTAINS,
+    NOT_CONTAINS,
+    STARTS_WITH,
+    ENDS_WITH,
+    REGEX_MATCH
+};
+
+enum class ExportFormat {
+    CSV,
+    JSON,
+    XML,
+    MARKDOWN,
+    HTML,
+    SQL
+};
+
+struct FilterCondition {
+    std::string columnName;
+    FilterOperator op;
+    std::string value;
+    bool caseSensitive;
+    
+    FilterCondition() 
+        : columnName(""), op(FilterOperator::EQUALS), value(""), caseSensitive(true) {}
+};
+
 class CSVProcessor {
 public:
     CSVProcessor();
@@ -98,6 +131,23 @@ public:
     // 排序
     void sortByColumn(int columnIndex, bool ascending = true);
     void sortByColumn(const std::string& columnName, bool ascending = true);
+    
+    // 数据筛选
+    void filter(const FilterCondition& condition);
+    void filter(const std::vector<FilterCondition>& conditions, bool matchAll = true);
+    void filterByRegex(const std::string& columnName, const std::string& pattern, bool caseSensitive = true);
+    void filterByRegex(const std::string& pattern, bool caseSensitive = true);
+    
+    // 数据导出
+    bool exportToFile(const std::string& filename, ExportFormat format) const;
+    bool exportToFile(const std::string& filename, ExportFormat format, const std::vector<std::string>& columns) const;
+    
+    std::string toCSV() const;
+    std::string toJSON() const;
+    std::string toXML() const;
+    std::string toMarkdown() const;
+    std::string toHTML() const;
+    std::string toSQL(const std::string& tableName = "data") const;
     
     // 辅助方法
     int getColumnIndex(const std::string& columnName) const;
