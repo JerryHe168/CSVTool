@@ -24,6 +24,20 @@ struct ValidationError {
         : row(r), column(c), message(m) {}
 };
 
+struct ColumnStatistics {
+    std::string columnName;
+    size_t totalRows;
+    size_t validNumericRows;
+    double min;
+    double max;
+    double sum;
+    double average;
+    bool hasValidData;
+    
+    ColumnStatistics() 
+        : totalRows(0), validNumericRows(0), min(0.0), max(0.0), sum(0.0), average(0.0), hasValidData(false) {}
+};
+
 class CSVProcessor {
 public:
     CSVProcessor();
@@ -65,6 +79,17 @@ public:
     void replaceString(const std::string& search, const std::string& replace);
     void replaceStringInColumn(int columnIndex, const std::string& search, const std::string& replace);
     void replaceStringInColumn(const std::string& columnName, const std::string& search, const std::string& replace);
+    
+    // 计算列
+    bool addCalculatedColumn(const std::string& newColumnName, const std::string& expression);
+    bool addCalculatedColumn(int position, const std::string& newColumnName, const std::string& expression);
+    
+    // 统计功能
+    ColumnStatistics calculateStatistics(const std::string& columnName) const;
+    ColumnStatistics calculateStatistics(int columnIndex) const;
+    std::map<std::string, ColumnStatistics> calculateAllStatistics() const;
+    void printStatistics(const std::string& columnName) const;
+    void printAllStatistics() const;
     
     // 排序
     void sortByColumn(int columnIndex, bool ascending = true);

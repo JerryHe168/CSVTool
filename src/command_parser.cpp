@@ -11,12 +11,14 @@ const std::vector<std::string> CommandParser::s_commands = {
     "remove-duplicates",
     "standardize-dates",
     "add-column",
+    "add-calc-column",
     "remove-column",
     "rename-column",
     "replace",
     "sort",
     "validate",
-    "info"
+    "info",
+    "stats"
 };
 
 CommandParser::CommandParser() 
@@ -172,16 +174,25 @@ void CommandParser::printHelp() const {
     std::cout << "                                    Standardize date formats (default: %Y-%m-%d)" << std::endl;
     std::cout << "  add-column NAME [--position N] [--default VALUE]" << std::endl;
     std::cout << "                                    Add a new column" << std::endl;
+    std::cout << "  add-calc-column NEW_NAME \"EXPR\" [--position N]" << std::endl;
+    std::cout << "                                    Add a calculated column with expression" << std::endl;
+    std::cout << "                                    Supported operators: +, -, *, /" << std::endl;
+    std::cout << "                                    Example: \"Age + 10\" or \"col1 + col2 * 2\"" << std::endl;
     std::cout << "  remove-column NAME                Remove a column by name" << std::endl;
     std::cout << "  rename-column OLD_NAME NEW_NAME   Rename a column" << std::endl;
     std::cout << "  replace SEARCH REPLACE [--column NAME]" << std::endl;
     std::cout << "                                    Replace string in cells" << std::endl;
     std::cout << "  sort COLUMN [--descending]        Sort by column (default: ascending)" << std::endl;
+    std::cout << "  stats [--column NAME]             Show statistics (count, min, max, sum, avg)" << std::endl;
+    std::cout << "                                    Without --column, shows stats for all columns" << std::endl;
     std::cout << std::endl;
     std::cout << "Examples:" << std::endl;
     std::cout << "  csvtool -i data.csv info" << std::endl;
     std::cout << "  csvtool -i data.csv -o cleaned.csv trim remove-missing sort --column=Name" << std::endl;
     std::cout << "  csvtool -i data.csv -o output.csv add-column Status --default=Active" << std::endl;
+    std::cout << "  csvtool -i data.csv stats --column=Age" << std::endl;
+    std::cout << "  csvtool -i data.csv -o output.csv add-calc-column DoubleAge \"Age * 2\"" << std::endl;
+    std::cout << "  csvtool -i data.csv -o output.csv add-calc-column Total \"Price * Quantity\"" << std::endl;
     std::cout << "  csvtool -i data.csv replace \"old\" \"new\" --column=Description" << std::endl;
     std::cout << std::endl;
 }

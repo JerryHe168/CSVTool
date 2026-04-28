@@ -246,6 +246,48 @@ int main(int argc, char* argv[]) {
                 std::cout << "  Sorted by column '" << column << "' in " 
                           << (ascending ? "ascending" : "descending") << " order" << std::endl;
             }
+            else if (cmd.name == "add-calc-column") {
+                if (cmd.args.size() < 2) {
+                    std::cerr << "Error: add-calc-column requires new column name and expression" << std::endl;
+                    return 1;
+                }
+                
+                std::string newName = cmd.args[0];
+                std::string expression = cmd.args[1];
+                int position = -1;
+                
+                auto posIt = cmd.options.find("position");
+                if (posIt != cmd.options.end()) {
+                    try {
+                        position = std::stoi(posIt->second);
+                    } catch (...) {
+                        std::cerr << "Error: Invalid position value" << std::endl;
+                        return 1;
+                    }
+                }
+                
+                bool success;
+                if (position >= 0) {
+                    success = processor.addCalculatedColumn(position, newName, expression);
+                } else {
+                    success = processor.addCalculatedColumn(newName, expression);
+                }
+                
+                if (success) {
+                    std::cout << "  Added calculated column '" << newName << "' with expression: " << expression << std::endl;
+                } else {
+                    std::cerr << "Error: Failed to add calculated column" << std::endl;
+                    return 1;
+                }
+            }
+            else if (cmd.name == "stats") {
+                auto colIt = cmd.options.find("column");
+                if (colIt != cmd.options.end()) {
+                    processor.printStatistics(colIt->second);
+                } else {
+                    processor.printAllStatistics();
+                }
+            }
             else {
                 std::cerr << "Warning: Unknown command: " << cmd.name << std::endl;
             }
