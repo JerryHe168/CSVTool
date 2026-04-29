@@ -384,6 +384,9 @@ void CSVProcessor::removeDuplicateRows() {
 
 namespace {
 
+// 前向声明
+int monthNameToNumber(const std::string& name);
+
 // 辅助函数：检查字符串是否只包含数字
 bool isAllDigits(const std::string& s) {
     for (char c : s) {
@@ -392,6 +395,48 @@ bool isAllDigits(const std::string& s) {
         }
     }
     return true;
+}
+
+// 辅助函数：检查字符是否是日期分隔符
+bool isDateSeparator(char c) {
+    return c == '-' || c == '/' || c == '.';
+}
+
+// 辅助函数：跳过空白字符
+void skipWhitespace(const std::string& s, size_t& pos) {
+    while (pos < s.size() && std::isspace(static_cast<unsigned char>(s[pos]))) {
+        pos++;
+    }
+}
+
+// 辅助函数：解析整数
+bool parseInt(const std::string& s, size_t& pos, int& result, int minDigits = 1, int maxDigits = 10) {
+    size_t start = pos;
+    while (pos < s.size() && std::isdigit(static_cast<unsigned char>(s[pos]))) {
+        pos++;
+    }
+    if (pos - start < (size_t)minDigits || pos - start > (size_t)maxDigits) {
+        return false;
+    }
+    try {
+        result = std::stoi(s.substr(start, pos - start));
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+// 辅助函数：解析月份名称
+int parseMonthName(const std::string& s, size_t& pos) {
+    size_t start = pos;
+    while (pos < s.size() && std::isalpha(static_cast<unsigned char>(s[pos]))) {
+        pos++;
+    }
+    if (pos == start) {
+        return -1;
+    }
+    std::string monthName = s.substr(start, pos - start);
+    return monthNameToNumber(monthName);
 }
 
 // 辅助函数：月份名称到数字的映射
@@ -467,7 +512,6 @@ bool CSVProcessor::tryParseDate(const std::string& dateStr, std::tm& tm) const {
         return false;
     }
     
-    // 检查是否看起来像日期（包含数字和分隔符）
     bool hasDigit = false;
     for (char c : trimmed) {
         if (std::isdigit(static_cast<unsigned char>(c))) {
@@ -479,44 +523,8 @@ bool CSVProcessor::tryParseDate(const std::string& dateStr, std::tm& tm) const {
         return false;
     }
     
-    // 尝试解析常见格式
     int year = 0, month = 0, day = 0;
-    
-    // 格式1: YYYY-MM-DD 或 YYYY/MM/DD 或 YYYY.MM.DD
-    {
-        std::regex pattern(R"(^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$)");
-        std::smatch match;
-        if (std::regex_match(trimmed, match, pattern)) {
-            year = std::stoi(match[1].str());
-            month = std::stoi(match[2].str());
-            day = std::stoi(match[3].str());
-            
-            if (isValidYear(year) && isValidMonth(month) && isValidDay(year, month, day)) {
-                tm.tm_year = year - 1900;
-                tm.tm_mon = month - 1;
-                tm.tm_mday = day;
-                return true;
-            }
-        }
-    }
-    
-    // 格式2: DD-MM-YYYY 或 DD/MM/YYYY 或 DD.MM.YYYY
-    {
-        std::regex pattern(R"(^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$)");
-        std::smatch match;
-        if (std::regex_match(trimmed, match, pattern)) {
-            day = std::stoi(match[1].str());
-            month = std::stoi(match[2].str());
-            year = std::stoi(match[3].str());
-            
-            if (isValidYear(year) && isValidMonth(month) && isValidDay(year, month, day)) {
-                tm.tm_year = year - 1900;
-                tm.tm_mon = month - 1;
-                tm.tm_mday = day;
-                return true;
-            }
-        }
-    }
+    size_t pos = 0;
     
     // 格式3: YYYYMMDD (8位数字)
     if (trimmed.size() == 8 && isAllDigits(trimmed)) {
@@ -530,76 +538,128 @@ bool CSVProcessor::tryParseDate(const std::string& dateStr, std::tm& tm) const {
             tm.tm_mday = day;
             return true;
         }
+        return false;
     }
     
-    // 格式4: "Jan 5, 2023" 或 "January 5, 2023"
+    // 检查是否是带时间的日期 (格式6)
+    // YYYY-MM-DD HH:MM:SS 或 YYYY-MM-DDTHH:MM:SS
     {
-        std::regex pattern(R"(^([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})$)");
-        std::smatch match;
-        if (std::regex_match(trimmed, match, pattern)) {
-            std::string monthName = match[1].str();
-            month = monthNameToNumber(monthName);
-            day = std::stoi(match[2].str());
-            year = std::stoi(match[3].str());
-            
-            if (month > 0 && isValidYear(year) && isValidDay(year, month, day)) {
-                tm.tm_year = year - 1900;
-                tm.tm_mon = month - 1;
-                tm.tm_mday = day;
-                return true;
-            }
-        }
-    }
-    
-    // 格式5: "5 Jan 2023" 或 "5 January 2023"
-    {
-        std::regex pattern(R"(^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$)");
-        std::smatch match;
-        if (std::regex_match(trimmed, match, pattern)) {
-            day = std::stoi(match[1].str());
-            std::string monthName = match[2].str();
-            month = monthNameToNumber(monthName);
-            year = std::stoi(match[3].str());
-            
-            if (month > 0 && isValidYear(year) && isValidDay(year, month, day)) {
-                tm.tm_year = year - 1900;
-                tm.tm_mon = month - 1;
-                tm.tm_mday = day;
-                return true;
-            }
-        }
-    }
-    
-    // 格式6: 带时间的日期 (只提取日期部分)
-    {
-        // YYYY-MM-DD HH:MM:SS
-        std::regex pattern1(R"(^(\d{4})-(\d{1,2})-(\d{1,2})\s+\d{1,2}:\d{1,2}:\d{1,2}$)");
-        std::smatch match;
-        if (std::regex_match(trimmed, match, pattern1)) {
-            year = std::stoi(match[1].str());
-            month = std::stoi(match[2].str());
-            day = std::stoi(match[3].str());
-            
-            if (isValidYear(year) && isValidMonth(month) && isValidDay(year, month, day)) {
-                tm.tm_year = year - 1900;
-                tm.tm_mon = month - 1;
-                tm.tm_mday = day;
-                return true;
-            }
+        size_t spacePos = trimmed.find(' ');
+        size_t tPos = trimmed.find('T');
+        size_t timePos = std::string::npos;
+        
+        if (spacePos != std::string::npos) {
+            timePos = spacePos;
+        } else if (tPos != std::string::npos) {
+            timePos = tPos;
         }
         
-        // YYYY-MM-DDTHH:MM:SS (ISO 8601)
-        std::regex pattern2(R"(^(\d{4})-(\d{1,2})-(\d{1,2})T\d{1,2}:\d{1,2}:\d{1,2}$)");
-        if (std::regex_match(trimmed, match, pattern2)) {
-            year = std::stoi(match[1].str());
-            month = std::stoi(match[2].str());
-            day = std::stoi(match[3].str());
+        if (timePos != std::string::npos && timePos >= 8) {
+            std::string datePart = trimmed.substr(0, timePos);
+            pos = 0;
             
-            if (isValidYear(year) && isValidMonth(month) && isValidDay(year, month, day)) {
-                tm.tm_year = year - 1900;
-                tm.tm_mon = month - 1;
-                tm.tm_mday = day;
-                return true;
+            if (parseInt(datePart, pos, year, 4, 4)) {
+                if (pos < datePart.size() && isDateSeparator(datePart[pos])) {
+                    pos++;
+                    if (parseInt(datePart, pos, month, 1, 2)) {
+                        if (pos < datePart.size() && isDateSeparator(datePart[pos])) {
+                            pos++;
+                            if (parseInt(datePart, pos, day, 1, 2) && pos == datePart.size()) {
+                                if (isValidYear(year) && isValidMonth(month) && isValidDay(year, month, day)) {
+                                    tm.tm_year = year - 1900;
+                                    tm.tm_mon = month - 1;
+                                    tm.tm_mday = day;
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // 格式1: YYYY-MM-DD / YYYY/MM/DD / YYYY.MM.DD
+    // 格式2: DD-MM-YYYY / DD/MM/YYYY / DD.MM.YYYY
+    // 同时尝试两种格式，通过年份范围判断
+    {
+        pos = 0;
+        int num1 = 0, num2 = 0, num3 = 0;
+        
+        if (parseInt(trimmed, pos, num1, 1, 4)) {
+            if (pos < trimmed.size() && isDateSeparator(trimmed[pos])) {
+                pos++;
+                if (parseInt(trimmed, pos, num2, 1, 2)) {
+                    if (pos < trimmed.size() && isDateSeparator(trimmed[pos])) {
+                        pos++;
+                        if (parseInt(trimmed, pos, num3, 1, 4) && pos == trimmed.size()) {
+                            // 两种可能的格式
+                            // 格式1: YYYY-MM-DD (num1=年, num2=月, num3=日)
+                            if (isValidYear(num1) && isValidMonth(num2) && isValidDay(num1, num2, num3)) {
+                                year = num1;
+                                month = num2;
+                                day = num3;
+                                tm.tm_year = year - 1900;
+                                tm.tm_mon = month - 1;
+                                tm.tm_mday = day;
+                                return true;
+                            }
+                            // 格式2: DD-MM-YYYY (num1=日, num2=月, num3=年)
+                            if (isValidYear(num3) && isValidMonth(num2) && isValidDay(num3, num2, num1)) {
+                                year = num3;
+                                month = num2;
+                                day = num1;
+                                tm.tm_year = year - 1900;
+                                tm.tm_mon = month - 1;
+                                tm.tm_mday = day;
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // 格式4: "Jan 5, 2023" / "January 5, 2023"
+    pos = 0;
+    skipWhitespace(trimmed, pos);
+    {
+        int m = parseMonthName(trimmed, pos);
+        if (m > 0) {
+            skipWhitespace(trimmed, pos);
+            if (parseInt(trimmed, pos, day, 1, 2)) {
+                if (pos < trimmed.size() && trimmed[pos] == ',') {
+                    pos++;
+                    skipWhitespace(trimmed, pos);
+                    if (parseInt(trimmed, pos, year, 4, 4) && pos == trimmed.size()) {
+                        if (isValidYear(year) && isValidDay(year, m, day)) {
+                            tm.tm_year = year - 1900;
+                            tm.tm_mon = m - 1;
+                            tm.tm_mday = day;
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // 格式5: "5 Jan 2023" / "5 January 2023"
+    pos = 0;
+    skipWhitespace(trimmed, pos);
+    if (parseInt(trimmed, pos, day, 1, 2)) {
+        skipWhitespace(trimmed, pos);
+        int m = parseMonthName(trimmed, pos);
+        if (m > 0) {
+            skipWhitespace(trimmed, pos);
+            if (parseInt(trimmed, pos, year, 4, 4) && pos == trimmed.size()) {
+                if (isValidYear(year) && isValidDay(year, m, day)) {
+                    tm.tm_year = year - 1900;
+                    tm.tm_mon = m - 1;
+                    tm.tm_mday = day;
+                    return true;
+                }
             }
         }
     }
@@ -1179,6 +1239,10 @@ ColumnStatistics CSVProcessor::calculateStatistics(int columnIndex) const {
     size_t validCount = 0;
     bool firstValue = true;
     
+    // Welford 在线算法变量
+    double mean = 0.0;
+    double M2 = 0.0;  // 平方差和
+    
     for (const auto& row : m_data) {
         const std::string& value = 
             (static_cast<size_t>(columnIndex) < row.size()) ? row[columnIndex] : "";
@@ -1216,6 +1280,12 @@ ColumnStatistics CSVProcessor::calculateStatistics(int columnIndex) const {
             sumVal += num;
             validCount++;
             numericValues.push_back(num);
+            
+            // Welford 在线算法更新
+            double delta = num - mean;
+            mean += delta / static_cast<double>(validCount);
+            double delta2 = num - mean;
+            M2 += delta * delta2;
         } catch (...) {
             continue;
         }
@@ -1233,20 +1303,39 @@ ColumnStatistics CSVProcessor::calculateStatistics(int columnIndex) const {
         stats.sum = sumVal;
         stats.average = sumVal / static_cast<double>(validCount);
         
-        std::sort(numericValues.begin(), numericValues.end());
+        // 使用 nth_element 计算中位数（比 sort 更快，O(n) vs O(n log n)）
         if (validCount % 2 == 1) {
+            // 奇数个元素：取中间位置
+            std::nth_element(numericValues.begin(), 
+                            numericValues.begin() + validCount / 2, 
+                            numericValues.end());
             stats.median = numericValues[validCount / 2];
         } else {
-            stats.median = (numericValues[validCount / 2 - 1] + numericValues[validCount / 2]) / 2.0;
+            // 偶数个元素：需要找到第 n/2-1 和 n/2 个元素
+            // 先找第 n/2 个元素
+            size_t mid = validCount / 2;
+            std::nth_element(numericValues.begin(), 
+                            numericValues.begin() + mid, 
+                            numericValues.end());
+            double upperMid = numericValues[mid];
+            
+            // 再找第 n/2-1 个元素（在左半部分找最大值）
+            std::nth_element(numericValues.begin(), 
+                            numericValues.begin() + mid - 1, 
+                            numericValues.begin() + mid);
+            double lowerMid = numericValues[mid - 1];
+            
+            stats.median = (lowerMid + upperMid) / 2.0;
         }
         
-        double sumSquaredDiff = 0.0;
-        for (double num : numericValues) {
-            double diff = num - stats.average;
-            sumSquaredDiff += diff * diff;
+        // 使用 Welford 算法计算方差和标准差
+        if (validCount > 1) {
+            stats.variance = M2 / static_cast<double>(validCount);  // 总体方差
+            stats.standardDeviation = std::sqrt(stats.variance);
+        } else {
+            stats.variance = 0.0;
+            stats.standardDeviation = 0.0;
         }
-        stats.variance = sumSquaredDiff / static_cast<double>(validCount);
-        stats.standardDeviation = std::sqrt(stats.variance);
     }
     
     stats.hasTextData = (textCount > 0);
@@ -1358,7 +1447,8 @@ bool compareNumericValues(const std::string& a, const std::string& b, FilterOper
 }
 
 bool matchCondition(const std::string& cellValue, FilterOperator op, 
-                    const std::string& filterValue, bool caseSensitive) {
+                    const std::string& filterValue, bool caseSensitive,
+                    const std::regex* precompiledRegex = nullptr) {
     std::string a = caseSensitive ? cellValue : toLower(cellValue);
     std::string b = caseSensitive ? filterValue : toLower(filterValue);
     
@@ -1381,6 +1471,9 @@ bool matchCondition(const std::string& cellValue, FilterOperator op,
         case FilterOperator::LESS_OR_EQUAL:
             return compareNumericValues(a, b, op);
         case FilterOperator::REGEX_MATCH:
+            if (precompiledRegex) {
+                return std::regex_match(cellValue, *precompiledRegex);
+            }
             try {
                 std::regex::flag_type flags = caseSensitive ? 
                     std::regex::ECMAScript : std::regex::icase;
@@ -1393,6 +1486,24 @@ bool matchCondition(const std::string& cellValue, FilterOperator op,
             return false;
     }
 }
+
+struct RegexCache {
+    std::unique_ptr<std::regex> re;
+    bool valid;
+    
+    RegexCache() : re(nullptr), valid(false) {}
+    
+    void compile(const std::string& pattern, bool caseSensitive) {
+        try {
+            std::regex::flag_type flags = caseSensitive ? 
+                std::regex::ECMAScript : std::regex::icase;
+            re = std::make_unique<std::regex>(pattern, flags);
+            valid = true;
+        } catch (...) {
+            valid = false;
+        }
+    }
+};
 
 std::string escapeJSON(const std::string& s) {
     std::ostringstream ss;
@@ -1490,6 +1601,15 @@ void CSVProcessor::filter(const FilterCondition& condition) {
     
     std::vector<std::vector<std::string>> newData;
     
+    RegexCache regexCache;
+    if (condition.op == FilterOperator::REGEX_MATCH) {
+        regexCache.compile(condition.value, condition.caseSensitive);
+        if (!regexCache.valid) {
+            std::cerr << "Warning: Invalid regex pattern: " << condition.value << std::endl;
+            return;
+        }
+    }
+    
     for (const auto& row : m_data) {
         if (static_cast<size_t>(colIdx) >= row.size()) {
             continue;
@@ -1497,7 +1617,8 @@ void CSVProcessor::filter(const FilterCondition& condition) {
         
         const std::string& cellValue = row[colIdx];
         
-        if (matchCondition(cellValue, condition.op, condition.value, condition.caseSensitive)) {
+        if (matchCondition(cellValue, condition.op, condition.value, 
+                          condition.caseSensitive, regexCache.re.get())) {
             newData.push_back(row);
         }
     }
@@ -1512,11 +1633,28 @@ void CSVProcessor::filter(const FilterCondition& condition) {
 void CSVProcessor::filter(const std::vector<FilterCondition>& conditions, bool matchAll) {
     std::vector<std::vector<std::string>> newData;
     
+    std::vector<std::pair<int, RegexCache>> columnIndices;
+    std::vector<RegexCache> regexCaches;
+    
+    for (const auto& cond : conditions) {
+        int colIdx = getColumnIndex(cond.columnName);
+        columnIndices.emplace_back(colIdx, RegexCache());
+        
+        if (cond.op == FilterOperator::REGEX_MATCH) {
+            columnIndices.back().second.compile(cond.value, cond.caseSensitive);
+            if (!columnIndices.back().second.valid) {
+                std::cerr << "Warning: Invalid regex pattern: " << cond.value << std::endl;
+            }
+        }
+    }
+    
     for (const auto& row : m_data) {
         bool matches = matchAll;
         
-        for (const auto& cond : conditions) {
-            int colIdx = getColumnIndex(cond.columnName);
+        for (size_t i = 0; i < conditions.size(); ++i) {
+            const auto& cond = conditions[i];
+            int colIdx = columnIndices[i].first;
+            
             if (colIdx < 0) {
                 if (matchAll) {
                     matches = false;
@@ -1534,7 +1672,8 @@ void CSVProcessor::filter(const std::vector<FilterCondition>& conditions, bool m
             }
             
             const std::string& cellValue = row[colIdx];
-            bool rowMatches = matchCondition(cellValue, cond.op, cond.value, cond.caseSensitive);
+            bool rowMatches = matchCondition(cellValue, cond.op, cond.value, 
+                                            cond.caseSensitive, columnIndices[i].second.re.get());
             
             if (matchAll) {
                 if (!rowMatches) {
@@ -1573,25 +1712,28 @@ void CSVProcessor::filterByRegex(const std::string& columnName, const std::strin
 void CSVProcessor::filterByRegex(const std::string& pattern, bool caseSensitive) {
     std::vector<std::vector<std::string>> newData;
     
-    for (const auto& row : m_data) {
-        bool matches = false;
+    std::regex::flag_type flags = caseSensitive ? 
+        std::regex::ECMAScript : std::regex::icase;
+    
+    try {
+        std::regex re(pattern, flags);
         
-        for (const auto& cellValue : row) {
-            try {
-                std::regex::flag_type flags = caseSensitive ? 
-                    std::regex::ECMAScript : std::regex::icase;
-                std::regex re(pattern, flags);
+        for (const auto& row : m_data) {
+            bool matches = false;
+            
+            for (const auto& cellValue : row) {
                 if (std::regex_match(cellValue, re)) {
                     matches = true;
                     break;
                 }
-            } catch (...) {
+            }
+            
+            if (matches) {
+                newData.push_back(row);
             }
         }
-        
-        if (matches) {
-            newData.push_back(row);
-        }
+    } catch (...) {
+        std::cerr << "Warning: Invalid regex pattern: " << pattern << std::endl;
     }
     
     size_t removed = m_data.size() - newData.size();
