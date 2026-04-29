@@ -1126,12 +1126,37 @@ ColumnStatistics CSVProcessor::calculateStatistics(int columnIndex) const {
     size_t validCount = 0;
     bool firstValue = true;
     
+    std::vector<double> numericValues;
+    std::map<std::string, size_t> valueCounts;
+    size_t nonEmptyCount = 0;
+    size_t missingCount = 0;
+    
+    size_t textMinLength = SIZE_MAX;
+    size_t textMaxLength = 0;
+    size_t textTotalLength = 0;
+    size_t textCount = 0;
+    
     for (const auto& row : m_data) {
+        const std::string& value = 
+            (static_cast<size_t>(columnIndex) < row.size()) ? row[columnIndex] : "";
+        
+        if (value.empty() || isMissingValue(value)) {
+            missingCount++;
+        } else {
+            nonEmptyCount++;
+            valueCounts[value]++;
+            
+            textCount++;
+            size_t len = value.length();
+            textTotalLength += len;
+            if (len < textMinLength) textMinLength = len;
+            if (len > textMaxLength) textMaxLength = len;
+        }
+        
         if (static_cast<size_t>(columnIndex) >= row.size()) {
             continue;
         }
         
-        const std::string& value = row[columnIndex];
         if (value.empty() || isMissingValue(value)) {
             continue;
         }
@@ -1154,12 +1179,15 @@ ColumnStatistics CSVProcessor::calculateStatistics(int columnIndex) const {
             
             sumVal += num;
             validCount++;
+            numericValues.push_back(num);
         } catch (...) {
-            // 不是数值，跳过
             continue;
         }
     }
     
+    stats.nonEmptyCount = nonEmptyCount;
+    stats.uniqueCount = valueCounts.size();
+    stats.missingCount = missingCount;
     stats.validNumericRows = validCount;
     stats.hasValidData = (validCount > 0);
     
@@ -1168,6 +1196,39 @@ ColumnStatistics CSVProcessor::calculateStatistics(int columnIndex) const {
         stats.maxValue = maxVal;
         stats.sum = sumVal;
         stats.average = sumVal / static_cast<double>(validCount);
+        
+        std::sort(numericValues.begin(), numericValues.end());
+        if (validCount % 2 == 1) {
+            stats.median = numericValues[validCount / 2];
+        } else {
+            stats.median = (numericValues[validCount / 2 - 1] + numericValues[validCount / 2]) / 2.0;
+        }
+        
+        double sumSquaredDiff = 0.0;
+        for (double num : numericValues) {
+            double diff = num - stats.average;
+            sumSquaredDiff += diff * diff;
+        }
+        stats.variance = sumSquaredDiff / static_cast<double>(validCount);
+        stats.standardDeviation = std::sqrt(stats.variance);
+    }
+    
+    stats.hasTextData = (textCount > 0);
+    if (stats.hasTextData) {
+        stats.minLength = textMinLength;
+        stats.maxLength = textMaxLength;
+        stats.avgLength = static_cast<double>(textTotalLength) / static_cast<double>(textCount);
+        
+        size_t maxCount = 0;
+        std::string modeValue = "";
+        for (const auto& pair : valueCounts) {
+            if (pair.second > maxCount) {
+                maxCount = pair.second;
+                modeValue = pair.first;
+            }
+        }
+        stats.mode = modeValue;
+        stats.modeCount = maxCount;
     }
     
     return stats;
@@ -1188,15 +1249,32 @@ void CSVProcessor::printStatistics(const std::string& columnName) const {
     
     std::cout << "Statistics for column: " << stats.columnName << std::endl;
     std::cout << "  Total rows: " << stats.totalRows << std::endl;
-    std::cout << "  Valid numeric rows: " << stats.validNumericRows << std::endl;
+    std::cout << "  Non-empty rows: " << stats.nonEmptyCount << std::endl;
+    std::cout << "  Missing rows: " << stats.missingCount << std::endl;
+    std::cout << "  Unique values: " << stats.uniqueCount << std::endl;
     
     if (stats.hasValidData) {
-        std::cout << "  Minimum: " << stats.minValue << std::endl;
-        std::cout << "  Maximum: " << stats.maxValue << std::endl;
-        std::cout << "  Sum: " << stats.sum << std::endl;
-        std::cout << "  Average: " << stats.average << std::endl;
-    } else {
-        std::cout << "  No valid numeric data found" << std::endl;
+        std::cout << "\n  Numeric Statistics:" << std::endl;
+        std::cout << "    Valid numeric rows: " << stats.validNumericRows << std::endl;
+        std::cout << "    Minimum: " << stats.minValue << std::endl;
+        std::cout << "    Maximum: " << stats.maxValue << std::endl;
+        std::cout << "    Sum: " << stats.sum << std::endl;
+        std::cout << "    Average (Mean): " << stats.average << std::endl;
+        std::cout << "    Median: " << stats.median << std::endl;
+        std::cout << "    Variance: " << stats.variance << std::endl;
+        std::cout << "    Standard Deviation: " << stats.standardDeviation << std::endl;
+    }
+    
+    if (stats.hasTextData) {
+        std::cout << "\n  Text Statistics:" << std::endl;
+        std::cout << "    Mode: '" << stats.mode << "' (appeared " << stats.modeCount << " times)" << std::endl;
+        std::cout << "    Min length: " << stats.minLength << std::endl;
+        std::cout << "    Max length: " << stats.maxLength << std::endl;
+        std::cout << "    Average length: " << stats.avgLength << std::endl;
+    }
+    
+    if (!stats.hasValidData && !stats.hasTextData) {
+        std::cout << "  No valid data found" << std::endl;
     }
 }
 

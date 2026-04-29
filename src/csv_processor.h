@@ -31,15 +31,34 @@ struct ValidationError {
 struct ColumnStatistics {
     std::string columnName;
     size_t totalRows;
+    size_t nonEmptyCount;
+    size_t uniqueCount;
+    size_t missingCount;
+    
     size_t validNumericRows;
     double minValue;
     double maxValue;
     double sum;
     double average;
+    double median;
+    double standardDeviation;
+    double variance;
     bool hasValidData;
     
+    std::string mode;
+    size_t modeCount;
+    size_t minLength;
+    size_t maxLength;
+    double avgLength;
+    bool hasTextData;
+    
     ColumnStatistics() 
-        : totalRows(0), validNumericRows(0), minValue(0.0), maxValue(0.0), sum(0.0), average(0.0), hasValidData(false) {}
+        : totalRows(0), nonEmptyCount(0), uniqueCount(0), missingCount(0),
+          validNumericRows(0), minValue(0.0), maxValue(0.0), sum(0.0), 
+          average(0.0), median(0.0), standardDeviation(0.0), variance(0.0), 
+          hasValidData(false),
+          mode(""), modeCount(0), minLength(0), maxLength(0), 
+          avgLength(0.0), hasTextData(false) {}
 };
 
 enum class FilterOperator {
