@@ -14,6 +14,7 @@ bool CSVProcessor::read(const std::string& filename, char delimiter) {
     m_delimiter = delimiter;
     m_header.clear();
     m_data.clear();
+    invalidateColumnIndexCache();
     
     std::ifstream file(filename, std::ios::binary);
     if (!file.is_open()) {
@@ -673,6 +674,7 @@ bool CSVProcessor::addColumn(int position, const std::string& columnName, const 
         }
     }
     
+    invalidateColumnIndexCache();
     return true;
 }
 
@@ -696,6 +698,7 @@ bool CSVProcessor::removeColumn(int columnIndex) {
         }
     }
     
+    invalidateColumnIndexCache();
     return true;
 }
 
@@ -714,6 +717,7 @@ bool CSVProcessor::renameColumn(int columnIndex, const std::string& newName) {
     }
     
     m_header[columnIndex] = newName;
+    invalidateColumnIndexCache();
     return true;
 }
 
@@ -811,11 +815,19 @@ void CSVProcessor::sortByColumn(const std::string& columnName, bool ascending) {
 
 // 辅助方法
 int CSVProcessor::getColumnIndex(const std::string& columnName) const {
+    auto it = m_columnIndexCache.find(columnName);
+    if (it != m_columnIndexCache.end()) {
+        return it->second;
+    }
+    
     for (size_t i = 0; i < m_header.size(); ++i) {
         if (m_header[i] == columnName) {
+            m_columnIndexCache[columnName] = static_cast<int>(i);
             return static_cast<int>(i);
         }
     }
+    
+    m_columnIndexCache[columnName] = -1;
     return -1;
 }
 
@@ -1915,6 +1927,7 @@ bool CSVProcessor::mergeFrom(const CSVProcessor& other, bool addSourceColumn, co
         m_data.push_back(newRow);
     }
     
+    invalidateColumnIndexCache();
     return true;
 }
 
@@ -1967,6 +1980,7 @@ bool CSVProcessor::mergeColumnsFrom(const CSVProcessor& other) {
         m_data.push_back(newRow);
     }
     
+    invalidateColumnIndexCache();
     return true;
 }
 

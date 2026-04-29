@@ -202,6 +202,10 @@ private:
     std::vector<std::string> m_requiredColumns;
     std::map<std::string, std::string> m_columnTypes; // "int", "double", "date", "string"
     
+    // 列名索引缓存（mutable 允许在 const 方法中修改）
+    mutable std::unordered_map<std::string, int> m_columnIndexCache;
+    void invalidateColumnIndexCache() const { m_columnIndexCache.clear(); }
+    
     // 辅助方法
     std::vector<ValidationError> validateInternal() const;
     std::vector<std::string> parseCSVLine(const std::string& line);
