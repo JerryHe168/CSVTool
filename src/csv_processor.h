@@ -17,6 +17,7 @@
 #include <iomanip>
 #include <ctime>
 #include <stdexcept>
+#include <filesystem>
 
 namespace csvtool {
 
@@ -184,6 +185,13 @@ public:
     void setRequiredColumns(const std::vector<std::string>& columns);
     void setColumnTypes(const std::map<std::string, std::string>& types);
     void clearValidationRules();
+    
+    // 合并功能
+    bool mergeFrom(const CSVProcessor& other, bool addSourceColumn = false, const std::string& sourceValue = "");
+    bool mergeColumnsFrom(const CSVProcessor& other);
+    
+    // 批量处理辅助
+    static std::vector<std::string> findCSVFiles(const std::string& directory, bool recursive = false);
 
 private:
     std::vector<std::string> m_header;

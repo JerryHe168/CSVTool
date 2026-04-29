@@ -1854,4 +1854,160 @@ bool CSVProcessor::exportToFile(const std::string& filename, ExportFormat format
     return true;
 }
 
+bool CSVProcessor::mergeFrom(const CSVProcessor& other, bool addSourceColumn, const std::string& sourceValue) {
+    if (other.m_header.empty()) {
+        return false;
+    }
+    
+    if (m_header.empty()) {
+        m_header = other.m_header;
+        if (addSourceColumn) {
+            m_header.push_back("_Source");
+        }
+    } else {
+        std::map<std::string, int> headerMap;
+        for (size_t i = 0; i < m_header.size(); ++i) {
+            headerMap[m_header[i]] = static_cast<int>(i);
+        }
+        
+        size_t originalSize = m_header.size();
+        for (const auto& col : other.m_header) {
+            if (headerMap.find(col) == headerMap.end()) {
+                headerMap[col] = static_cast<int>(m_header.size());
+                m_header.push_back(col);
+            }
+        }
+        
+        if (addSourceColumn && headerMap.find("_Source") == headerMap.end()) {
+            m_header.push_back("_Source");
+        }
+        
+        for (auto& row : m_data) {
+            while (row.size() < m_header.size()) {
+                row.push_back("");
+            }
+        }
+    }
+    
+    for (const auto& otherRow : other.m_data) {
+        std::vector<std::string> newRow(m_header.size(), "");
+        
+        for (size_t i = 0; i < other.m_header.size(); ++i) {
+            for (size_t j = 0; j < m_header.size(); ++j) {
+                if (m_header[j] == other.m_header[i]) {
+                    if (i < otherRow.size()) {
+                        newRow[j] = otherRow[i];
+                    }
+                    break;
+                }
+            }
+        }
+        
+        if (addSourceColumn) {
+            for (size_t j = 0; j < m_header.size(); ++j) {
+                if (m_header[j] == "_Source") {
+                    newRow[j] = sourceValue;
+                    break;
+                }
+            }
+        }
+        
+        m_data.push_back(newRow);
+    }
+    
+    return true;
+}
+
+bool CSVProcessor::mergeColumnsFrom(const CSVProcessor& other) {
+    if (other.m_header.empty() || other.m_data.empty()) {
+        return false;
+    }
+    
+    size_t minRows = std::min(m_data.size(), other.m_data.size());
+    
+    for (const auto& col : other.m_header) {
+        bool exists = false;
+        for (const auto& existingCol : m_header) {
+            if (existingCol == col) {
+                exists = true;
+                break;
+            }
+        }
+        if (!exists) {
+            m_header.push_back(col);
+        }
+    }
+    
+    for (size_t i = 0; i < minRows; ++i) {
+        for (const auto& cell : other.m_data[i]) {
+            m_data[i].push_back(cell);
+        }
+        while (m_data[i].size() < m_header.size()) {
+            m_data[i].push_back("");
+        }
+    }
+    
+    for (size_t i = minRows; i < m_data.size(); ++i) {
+        while (m_data[i].size() < m_header.size()) {
+            m_data[i].push_back("");
+        }
+    }
+    
+    for (size_t i = minRows; i < other.m_data.size(); ++i) {
+        std::vector<std::string> newRow;
+        while (newRow.size() < m_header.size() - other.m_header.size()) {
+            newRow.push_back("");
+        }
+        for (const auto& cell : other.m_data[i]) {
+            newRow.push_back(cell);
+        }
+        while (newRow.size() < m_header.size()) {
+            newRow.push_back("");
+        }
+        m_data.push_back(newRow);
+    }
+    
+    return true;
+}
+
+std::vector<std::string> CSVProcessor::findCSVFiles(const std::string& directory, bool recursive) {
+    std::vector<std::string> result;
+    
+    try {
+        namespace fs = std::filesystem;
+        fs::path dirPath(directory);
+        
+        if (!fs::exists(dirPath) || !fs::is_directory(dirPath)) {
+            return result;
+        }
+        
+        if (recursive) {
+            for (const auto& entry : fs::recursive_directory_iterator(dirPath)) {
+                if (entry.is_regular_file()) {
+                    std::string ext = entry.path().extension().string();
+                    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                    if (ext == ".csv") {
+                        result.push_back(entry.path().string());
+                    }
+                }
+            }
+        } else {
+            for (const auto& entry : fs::directory_iterator(dirPath)) {
+                if (entry.is_regular_file()) {
+                    std::string ext = entry.path().extension().string();
+                    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                    if (ext == ".csv") {
+                        result.push_back(entry.path().string());
+                    }
+                }
+            }
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Error scanning directory: " << e.what() << std::endl;
+    }
+    
+    std::sort(result.begin(), result.end());
+    return result;
+}
+
 } // namespace csvtool
