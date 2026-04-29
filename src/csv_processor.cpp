@@ -878,6 +878,71 @@ struct ExpressionToken {
     ExpressionToken() : type(TOKEN_INVALID), numValue(0.0), op(0) {}
 };
 
+int getOperatorPrecedence(char op) {
+    if (op == '*' || op == '/') {
+        return 2;
+    } else if (op == '+' || op == '-') {
+        return 1;
+    }
+    return 0;
+}
+
+double applyOperator(double left, char op, double right) {
+    switch (op) {
+        case '+': return left + right;
+        case '-': return left - right;
+        case '*': return left * right;
+        case '/':
+            if (right == 0.0) {
+                throw std::runtime_error("Division by zero");
+            }
+            return left / right;
+        default:
+            throw std::runtime_error("Invalid operator");
+    }
+}
+
+double getTokenValue(const ExpressionToken& tok, 
+                     const std::vector<std::string>& row,
+                     const std::vector<std::string>& header) {
+    if (tok.type == TOKEN_NUMBER) {
+        return tok.numValue;
+    } else if (tok.type == TOKEN_COLUMN) {
+        int colIdx = -1;
+        for (size_t i = 0; i < header.size(); ++i) {
+            if (header[i] == tok.value) {
+                colIdx = static_cast<int>(i);
+                break;
+            }
+        }
+        
+        if (colIdx < 0) {
+            throw std::runtime_error("Column not found: " + tok.value);
+        }
+        
+        if (static_cast<size_t>(colIdx) >= row.size()) {
+            throw std::runtime_error("Row missing value for column: " + tok.value);
+        }
+        
+        const std::string& cellValue = row[colIdx];
+        if (cellValue.empty()) {
+            throw std::runtime_error("Empty value in column: " + tok.value);
+        }
+        
+        try {
+            size_t pos;
+            double value = std::stod(cellValue, &pos);
+            if (pos != cellValue.size()) {
+                throw std::runtime_error("Invalid numeric value: " + cellValue);
+            }
+            return value;
+        } catch (const std::invalid_argument&) {
+            throw std::runtime_error("Invalid numeric value: " + cellValue);
+        }
+    }
+    return 0.0;
+}
+
 std::vector<ExpressionToken> tokenizeExpression(const std::string& expr) {
     std::vector<ExpressionToken> tokens;
     std::string current;
@@ -890,11 +955,9 @@ std::vector<ExpressionToken> tokenizeExpression(const std::string& expr) {
             continue;
         }
         
-        // 操作符
         if (c == '+' || c == '-' || c == '*' || c == '/') {
             if (!current.empty()) {
                 ExpressionToken tok;
-                // 尝试解析为数字
                 try {
                     size_t pos;
                     double num = std::stod(current, &pos);
@@ -923,7 +986,6 @@ std::vector<ExpressionToken> tokenizeExpression(const std::string& expr) {
         }
     }
     
-    // 处理最后一个 token
     if (!current.empty()) {
         ExpressionToken tok;
         try {
@@ -946,7 +1008,6 @@ std::vector<ExpressionToken> tokenizeExpression(const std::string& expr) {
     return tokens;
 }
 
-// 简单的表达式求值（从左到右，不考虑优先级）
 double evaluateExpression(const std::vector<ExpressionToken>& tokens, 
                           const std::vector<std::string>& row,
                           const std::vector<std::string>& header) {
@@ -954,71 +1015,41 @@ double evaluateExpression(const std::vector<ExpressionToken>& tokens,
         return 0.0;
     }
     
-    double result = 0.0;
-    char lastOp = 0;
-    bool firstValue = true;
+    if (tokens.size() == 1) {
+        return getTokenValue(tokens[0], row, header);
+    }
     
-    for (const auto& tok : tokens) {
+    std::vector<double> values;
+    std::vector<char> operators;
+    
+    for (size_t i = 0; i < tokens.size(); ++i) {
+        const ExpressionToken& tok = tokens[i];
+        
         if (tok.type == TOKEN_OPERATOR) {
-            lastOp = tok.op;
+            operators.push_back(tok.op);
         } else {
-            double value = 0.0;
-            
-            if (tok.type == TOKEN_NUMBER) {
-                value = tok.numValue;
-            } else if (tok.type == TOKEN_COLUMN) {
-                // 查找列
-                int colIdx = -1;
-                for (size_t i = 0; i < header.size(); ++i) {
-                    if (header[i] == tok.value) {
-                        colIdx = static_cast<int>(i);
-                        break;
-                    }
-                }
-                
-                if (colIdx < 0) {
-                    throw std::runtime_error("Column not found: " + tok.value);
-                }
-                
-                if (static_cast<size_t>(colIdx) >= row.size()) {
-                    throw std::runtime_error("Row missing value for column: " + tok.value);
-                }
-                
-                const std::string& cellValue = row[colIdx];
-                if (cellValue.empty()) {
-                    throw std::runtime_error("Empty value in column: " + tok.value);
-                }
-                
-                try {
-                    size_t pos;
-                    value = std::stod(cellValue, &pos);
-                    if (pos != cellValue.size()) {
-                        throw std::runtime_error("Invalid numeric value: " + cellValue);
-                    }
-                } catch (const std::invalid_argument&) {
-                    throw std::runtime_error("Invalid numeric value: " + cellValue);
-                }
-            }
-            
-            if (firstValue) {
-                result = value;
-                firstValue = false;
-            } else {
-                switch (lastOp) {
-                    case '+': result += value; break;
-                    case '-': result -= value; break;
-                    case '*': result *= value; break;
-                    case '/': 
-                        if (value == 0.0) {
-                            throw std::runtime_error("Division by zero");
-                        }
-                        result /= value; 
-                        break;
-                    default:
-                        throw std::runtime_error("Invalid operator");
-                }
-            }
+            values.push_back(getTokenValue(tok, row, header));
         }
+    }
+    
+    if (values.empty()) {
+        return 0.0;
+    }
+    
+    for (size_t i = 0; i < operators.size(); ) {
+        if (operators[i] == '*' || operators[i] == '/') {
+            double result = applyOperator(values[i], operators[i], values[i + 1]);
+            values[i] = result;
+            values.erase(values.begin() + i + 1);
+            operators.erase(operators.begin() + i);
+        } else {
+            ++i;
+        }
+    }
+    
+    double result = values[0];
+    for (size_t i = 0; i < operators.size(); ++i) {
+        result = applyOperator(result, operators[i], values[i + 1]);
     }
     
     return result;
@@ -1120,14 +1151,8 @@ ColumnStatistics CSVProcessor::calculateStatistics(int columnIndex) const {
     stats.columnName = m_header[columnIndex];
     stats.totalRows = m_data.size();
     
-    double minVal = 0.0;
-    double maxVal = 0.0;
-    double sumVal = 0.0;
-    size_t validCount = 0;
-    bool firstValue = true;
-    
     std::vector<double> numericValues;
-    std::map<std::string, size_t> valueCounts;
+    std::unordered_map<std::string, size_t> valueCounts;
     size_t nonEmptyCount = 0;
     size_t missingCount = 0;
     
@@ -1136,30 +1161,29 @@ ColumnStatistics CSVProcessor::calculateStatistics(int columnIndex) const {
     size_t textTotalLength = 0;
     size_t textCount = 0;
     
+    double minVal = 0.0;
+    double maxVal = 0.0;
+    double sumVal = 0.0;
+    size_t validCount = 0;
+    bool firstValue = true;
+    
     for (const auto& row : m_data) {
         const std::string& value = 
             (static_cast<size_t>(columnIndex) < row.size()) ? row[columnIndex] : "";
         
         if (value.empty() || isMissingValue(value)) {
             missingCount++;
-        } else {
-            nonEmptyCount++;
-            valueCounts[value]++;
-            
-            textCount++;
-            size_t len = value.length();
-            textTotalLength += len;
-            if (len < textMinLength) textMinLength = len;
-            if (len > textMaxLength) textMaxLength = len;
-        }
-        
-        if (static_cast<size_t>(columnIndex) >= row.size()) {
             continue;
         }
         
-        if (value.empty() || isMissingValue(value)) {
-            continue;
-        }
+        nonEmptyCount++;
+        valueCounts[value]++;
+        
+        textCount++;
+        size_t len = value.length();
+        textTotalLength += len;
+        if (len < textMinLength) textMinLength = len;
+        if (len > textMaxLength) textMaxLength = len;
         
         try {
             size_t pos;
