@@ -24,18 +24,26 @@ public:
     
     const std::vector<Command>& getCommands() const { return m_commands; }
     const std::string& getInputFile() const { return m_inputFile; }
+    const std::vector<std::string>& getInputFiles() const { return m_inputFiles; }
+    const std::string& getInputDirectory() const { return m_inputDirectory; }
+    const std::string& getOutputDirectory() const { return m_outputDirectory; }
     const std::string& getOutputFile() const { return m_outputFile; }
     char getDelimiter() const { return m_delimiter; }
     bool hasHelpFlag() const { return m_helpFlag; }
     bool hasVersionFlag() const { return m_versionFlag; }
+    bool isRecursive() const { return m_recursive; }
     
 private:
     std::vector<Command> m_commands;
     std::string m_inputFile;
+    std::vector<std::string> m_inputFiles;
+    std::string m_inputDirectory;
+    std::string m_outputDirectory;
     std::string m_outputFile;
     char m_delimiter;
     bool m_helpFlag;
     bool m_versionFlag;
+    bool m_recursive;
     
     Command parseCommand(const std::vector<std::string>& tokens);
     bool isCommand(const std::string& token) const;

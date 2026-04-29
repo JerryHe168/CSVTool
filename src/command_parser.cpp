@@ -21,11 +21,12 @@ const std::vector<std::string> CommandParser::s_commands = {
     "stats",
     "filter",
     "filter-regex",
-    "export"
+    "export",
+    "merge"
 };
 
 CommandParser::CommandParser() 
-    : m_delimiter(','), m_helpFlag(false), m_versionFlag(false) {}
+    : m_delimiter(','), m_helpFlag(false), m_versionFlag(false), m_recursive(false) {}
 
 bool CommandParser::parse(int argc, char* argv[]) {
     if (argc < 2) {
@@ -56,12 +57,43 @@ bool CommandParser::parse(int argc, char* argv[]) {
             }
             m_inputFile = args[++i];
         }
+        else if (arg == "--input-files") {
+            if (!hasNextArg) {
+                std::cerr << "Error: " << arg << " requires comma-separated file paths" << std::endl;
+                return false;
+            }
+            std::string filesStr = args[++i];
+            std::istringstream iss(filesStr);
+            std::string file;
+            while (std::getline(iss, file, ',')) {
+                if (!file.empty()) {
+                    m_inputFiles.push_back(file);
+                }
+            }
+        }
+        else if (arg == "--input-dir" || arg == "-id") {
+            if (!hasNextArg) {
+                std::cerr << "Error: " << arg << " requires a directory path" << std::endl;
+                return false;
+            }
+            m_inputDirectory = args[++i];
+        }
+        else if (arg == "--output-dir" || arg == "-od") {
+            if (!hasNextArg) {
+                std::cerr << "Error: " << arg << " requires a directory path" << std::endl;
+                return false;
+            }
+            m_outputDirectory = args[++i];
+        }
         else if (arg == "-o" || arg == "--output") {
             if (!hasNextArg) {
                 std::cerr << "Error: " << arg << " requires a file path" << std::endl;
                 return false;
             }
             m_outputFile = args[++i];
+        }
+        else if (arg == "--recursive" || arg == "-r") {
+            m_recursive = true;
         }
         else if (arg == "-d" || arg == "--delimiter") {
             if (!hasNextArg) {
@@ -160,12 +192,16 @@ void CommandParser::printHelp() const {
     std::cout << "  csvtool [OPTIONS] [COMMANDS]" << std::endl;
     std::cout << std::endl;
     std::cout << "Options:" << std::endl;
-    std::cout << "  -h, --help          Print this help message" << std::endl;
-    std::cout << "  -v, --version       Print version information" << std::endl;
-    std::cout << "  -i, --input FILE    Input CSV file (required)" << std::endl;
-    std::cout << "  -o, --output FILE   Output CSV file (optional)" << std::endl;
-    std::cout << "  -d, --delimiter C   Delimiter character (default: comma)" << std::endl;
-    std::cout << "                      Use '\\t' or 'tab' for tab, 'semicolon' for semicolon" << std::endl;
+    std::cout << "  -h, --help                 Print this help message" << std::endl;
+    std::cout << "  -v, --version              Print version information" << std::endl;
+    std::cout << "  -i, --input FILE           Input CSV file (required for single file)" << std::endl;
+    std::cout << "  --input-files FILE1,FILE2  Multiple input CSV files (comma-separated)" << std::endl;
+    std::cout << "  -id, --input-dir DIR       Input directory (process all CSV files)" << std::endl;
+    std::cout << "  -o, --output FILE          Output CSV file (optional for single file)" << std::endl;
+    std::cout << "  -od, --output-dir DIR      Output directory (for batch processing)" << std::endl;
+    std::cout << "  -r, --recursive            Recursively process subdirectories" << std::endl;
+    std::cout << "  -d, --delimiter C          Delimiter character (default: comma)" << std::endl;
+    std::cout << "                             Use '\\t' or 'tab' for tab, 'semicolon' for semicolon" << std::endl;
     std::cout << std::endl;
     std::cout << "Commands:" << std::endl;
     std::cout << "  info                              Display CSV file information" << std::endl;
@@ -179,14 +215,15 @@ void CommandParser::printHelp() const {
     std::cout << "                                    Add a new column" << std::endl;
     std::cout << "  add-calc-column NEW_NAME \"EXPR\" [--position N]" << std::endl;
     std::cout << "                                    Add a calculated column with expression" << std::endl;
-    std::cout << "                                    Supported operators: +, -, *, /" << std::endl;
+    std::cout << "                                    Supported operators: +, -, *, / (with precedence)" << std::endl;
     std::cout << "                                    Example: \"Age + 10\" or \"col1 + col2 * 2\"" << std::endl;
     std::cout << "  remove-column NAME                Remove a column by name" << std::endl;
     std::cout << "  rename-column OLD_NAME NEW_NAME   Rename a column" << std::endl;
     std::cout << "  replace SEARCH REPLACE [--column NAME]" << std::endl;
     std::cout << "                                    Replace string in cells" << std::endl;
     std::cout << "  sort COLUMN [--descending]        Sort by column (default: ascending)" << std::endl;
-    std::cout << "  stats [--column NAME]             Show statistics (count, min, max, sum, avg)" << std::endl;
+    std::cout << "  stats [--column NAME]             Show statistics (count, min, max, sum, avg," << std::endl;
+    std::cout << "                                    median, variance, stddev, mode, length stats)" << std::endl;
     std::cout << "                                    Without --column, shows stats for all columns" << std::endl;
     std::cout << std::endl;
     std::cout << "Filtering:" << std::endl;
@@ -210,6 +247,14 @@ void CommandParser::printHelp() const {
     std::cout << "                                    Example: export --format=json --columns=Name,Age" << std::endl;
     std::cout << "                                             export --format=sql --table=users" << std::endl;
     std::cout << std::endl;
+    std::cout << "Batch & Merge:" << std::endl;
+    std::cout << "  merge --mode=MODE [--add-source] [--source-value=VAL]" << std::endl;
+    std::cout << "                                    Merge multiple CSV files" << std::endl;
+    std::cout << "                                    --mode: vertical (append rows) or horizontal (append columns)" << std::endl;
+    std::cout << "                                    --add-source: Add source file column" << std::endl;
+    std::cout << "                                    Use with --input-files or --input-dir" << std::endl;
+    std::cout << "                                    Example: merge --mode=vertical --add-source" << std::endl;
+    std::cout << std::endl;
     std::cout << "Examples:" << std::endl;
     std::cout << "  csvtool -i data.csv info" << std::endl;
     std::cout << "  csvtool -i data.csv -o cleaned.csv trim remove-missing sort --column=Name" << std::endl;
@@ -218,6 +263,12 @@ void CommandParser::printHelp() const {
     std::cout << "  csvtool -i data.csv -o output.csv add-calc-column DoubleAge \"Age * 2\"" << std::endl;
     std::cout << "  csvtool -i data.csv -o output.csv add-calc-column Total \"Price * Quantity\"" << std::endl;
     std::cout << "  csvtool -i data.csv replace \"old\" \"new\" --column=Description" << std::endl;
+    std::cout << std::endl;
+    std::cout << "Batch Processing Examples:" << std::endl;
+    std::cout << "  csvtool --input-dir ./data -od ./output trim remove-missing" << std::endl;
+    std::cout << "  csvtool --input-dir ./data -r -od ./output export --format=json" << std::endl;
+    std::cout << "  csvtool --input-files file1.csv,file2.csv,file3.csv merge --mode=vertical --add-source -o merged.csv" << std::endl;
+    std::cout << "  csvtool --input-dir ./csv_files merge --mode=vertical -o combined.csv" << std::endl;
     std::cout << std::endl;
 }
 
