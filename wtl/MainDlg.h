@@ -10,15 +10,7 @@ class CMainDlg : public CDialogImpl<CMainDlg>
 {
 public:
     enum { IDD = IDD_CSVTOOL_DIALOG };
-
-    enum { 
-        MARGIN = 10,
-        IDC_BTN_OPEN = 1000,
-        IDC_BTN_SAVE = 1001,
-        IDC_BTN_STATS = 1002,
-        IDC_BTN_PROCESS = 1003,
-        IDC_BTN_EXPORT = 1004
-    };
+    enum { MARGIN = 10 };
 
 protected:
     CCSVModel m_model;
@@ -26,9 +18,6 @@ protected:
     CViewManager m_viewManager;
 
 public:
-    CMainDlg();
-    virtual ~CMainDlg() {}
-
     BEGIN_MSG_MAP(CMainDlg)
         MESSAGE_HANDLER(WM_INITDIALOG, OnInitDialog)
         MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
@@ -40,6 +29,11 @@ public:
         COMMAND_HANDLER(IDC_BTN_STATS, BN_CLICKED, OnBtnStats)
         COMMAND_HANDLER(IDC_BTN_PROCESS, BN_CLICKED, OnBtnProcess)
         COMMAND_HANDLER(IDC_BTN_EXPORT, BN_CLICKED, OnBtnExport)
+        COMMAND_HANDLER(IDC_BTN_CLEAN, BN_CLICKED, OnBtnClean)
+        COMMAND_HANDLER(IDC_BTN_CONVERT, BN_CLICKED, OnBtnConvert)
+        COMMAND_HANDLER(IDC_BTN_SORT, BN_CLICKED, OnBtnSort)
+        COMMAND_HANDLER(IDC_BTN_STAT_PROCESS, BN_CLICKED, OnBtnStatProcess)
+        COMMAND_HANDLER(IDC_BTN_FILTER, BN_CLICKED, OnBtnFilter)
     END_MSG_MAP()
 
     LRESULT OnInitDialog(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
@@ -52,9 +46,15 @@ public:
     LRESULT OnBtnStats(WORD wNotifyCode, WORD wID, HWND hWndCtl, BOOL& bHandled);
     LRESULT OnBtnProcess(WORD wNotifyCode, WORD wID, HWND hWndCtl, BOOL& bHandled);
     LRESULT OnBtnExport(WORD wNotifyCode, WORD wID, HWND hWndCtl, BOOL& bHandled);
+    LRESULT OnBtnClean(WORD wNotifyCode, WORD wID, HWND hWndCtl, BOOL& bHandled);
+    LRESULT OnBtnConvert(WORD wNotifyCode, WORD wID, HWND hWndCtl, BOOL& bHandled);
+    LRESULT OnBtnSort(WORD wNotifyCode, WORD wID, HWND hWndCtl, BOOL& bHandled);
+    LRESULT OnBtnStatProcess(WORD wNotifyCode, WORD wID, HWND hWndCtl, BOOL& bHandled);
+    LRESULT OnBtnFilter(WORD wNotifyCode, WORD wID, HWND hWndCtl, BOOL& bHandled);
 
 protected:
     void LayoutControls();
     void GetDataAreaRect(CRect& rc);
     void SwitchToView(ViewType viewType);
+    void RefreshCurrentView();
 };
