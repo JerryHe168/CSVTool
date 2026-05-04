@@ -1,6 +1,7 @@
 #pragma once
 #include "stdafx.h"
 
+struct CColumnStatistics;
 class IDataModel;
 
 enum ViewType
@@ -16,7 +17,7 @@ class IView
 public:
     virtual ~IView() = 0 {}
     
-    virtual HWND Create(HWND hWndParent, const RECT& rc) = 0;
+    virtual HWND Create(HWND hWndParent, RECT& rc) = 0;
     virtual void Show(BOOL bShow = TRUE) = 0;
     virtual void MoveWindow(const RECT& rc) = 0;
     virtual HWND GetHwnd() const = 0;
@@ -37,21 +38,25 @@ public:
     virtual CString GetCell(size_t row, size_t col) const = 0;
     virtual void GetStatistics(std::vector<std::pair<CString, CString>>& stats) const = 0;
     virtual bool LoadFromFile(LPCTSTR pszFilePath) = 0;
+    virtual bool SaveToFile(LPCTSTR pszFilePath) = 0;
+    virtual bool SaveToFileUTF8(LPCTSTR pszFilePath) = 0;
+    
+    virtual const std::vector<CString>& GetHeaders() const = 0;
+    virtual const std::vector<std::vector<CString>>& GetData() const = 0;
+    virtual CColumnStatistics GetColumnStatistics(int columnIndex) const = 0;
+    virtual CColumnStatistics GetColumnStatistics(const CString& columnName) const = 0;
+    virtual std::map<CString, CColumnStatistics> GetAllColumnStatistics() const = 0;
 };
 
 class CViewBase : public IView
 {
 protected:
-    HWND m_hWnd;
     IDataModel* m_pModel;
     
 public:
     CViewBase();
     virtual ~CViewBase() {}
     
-    virtual void Show(BOOL bShow = TRUE);
-    virtual void MoveWindow(const RECT& rc);
-    virtual HWND GetHwnd() const { return m_hWnd; }
     virtual void SetModel(IDataModel* pModel) { m_pModel = pModel; }
 };
 
@@ -60,7 +65,7 @@ class INavigationBar
 public:
     virtual ~INavigationBar() = 0 {}
     
-    virtual HWND Create(HWND hWndParent, const RECT& rc) = 0;
+    virtual HWND Create(HWND hWndParent, RECT& rc) = 0;
     virtual void Show(BOOL bShow = TRUE) = 0;
     virtual void MoveWindow(const RECT& rc) = 0;
     virtual HWND GetHwnd() const = 0;
