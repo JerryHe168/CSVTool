@@ -34,10 +34,22 @@ void CDataListView::Refresh()
     {
     }
 
-    if (!m_pModel || !m_pModel->IsLoaded())
+    if (!m_pModel)
+    {
         return;
+    }
+
+    if (!m_pModel->IsLoaded())
+    {
+        return;
+    }
 
     size_t nColCnt = m_pModel->GetColumnCount();
+    if (nColCnt == 0)
+    {
+        return;
+    }
+
     for (size_t i = 0; i < nColCnt; ++i)
     {
         CString strHeader = m_pModel->GetHeader(i);

@@ -24,7 +24,14 @@ public:
     CString GetCell(size_t row, size_t col) const;
     
     const std::vector<CString>& GetHeaders() const { return m_headers; }
+    std::vector<CString>& GetHeaders() { return m_headers; }
     const std::vector<std::vector<CString>>& GetData() const { return m_data; }
+    std::vector<std::vector<CString>>& GetData() { return m_data; }
+    
+    void SetCell(size_t row, size_t col, const CString& value);
+    void SetData(const std::vector<std::vector<CString>>& data);
+    void SetHeaders(const std::vector<CString>& headers);
+    void Clear();
 
 protected:
     static bool IsUTF8WithBOM(const char* pBuffer, size_t nSize);

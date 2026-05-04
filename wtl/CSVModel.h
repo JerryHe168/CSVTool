@@ -5,7 +5,7 @@
 #include "CsvWriter.h"
 #include "CsvStatistics.h"
 #include "CsvCleaner.h"
-#include <unordered_map>
+#include <map>
 
 class CCSVModel : public IDataModel
 {
@@ -15,7 +15,7 @@ protected:
     CCsvStatistics m_statistics;
     CCsvCleaner m_cleaner;
     CString m_currentFilePath;
-    mutable std::unordered_map<CString, int> m_columnIndexCache;
+    mutable std::map<CString, int> m_columnIndexCache;
 
 public:
     CCSVModel();

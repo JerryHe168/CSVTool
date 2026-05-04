@@ -213,7 +213,6 @@ int CCSVModel::CompareValues(const CString& a, const CString& b) const
 {
     try
     {
-        size_t posA, posB;
         double numA = _ttof(a);
         double numB = _ttof(b);
         
@@ -221,7 +220,14 @@ int CCSVModel::CompareValues(const CString& a, const CString& b) const
         strA.Format(_T("%f"), numA);
         strB.Format(_T("%f"), numB);
         
-        if (strA.Trim() == a.Trim() && strB.Trim() == b.Trim())
+        CString aTrimmed = a;
+        aTrimmed.Trim();
+        CString bTrimmed = b;
+        bTrimmed.Trim();
+        strA.Trim();
+        strB.Trim();
+        
+        if (strA == aTrimmed && strB == bTrimmed)
         {
             if (numA < numB) return -1;
             if (numA > numB) return 1;

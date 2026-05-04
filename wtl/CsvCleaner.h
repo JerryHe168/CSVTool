@@ -35,4 +35,6 @@ public:
 
 protected:
     int GetColumnIndex(const CString& columnName) const;
+    bool IsDateSeparator(TCHAR c) const;
+    bool ParseDateSimple(const CString& value, int& year, int& month, int& day) const;
 };
