@@ -209,6 +209,9 @@
   <ItemGroup>
     <ClCompile Include="CSVModel.cpp" />
     <ClCompile Include="CSVTool.cpp" />
+    <ClCompile Include="CsvReader.cpp" />
+    <ClCompile Include="CsvStatistics.cpp" />
+    <ClCompile Include="CsvWriter.cpp" />
     <ClCompile Include="DataListView.cpp" />
     <ClCompile Include="MainDlg.cpp" />
     <ClCompile Include="NavigationBar.cpp" />
@@ -224,6 +227,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CSVModel.h" />
+    <ClInclude Include="CsvReader.h" />
+    <ClInclude Include="CsvStatistics.h" />
+    <ClInclude Include="CsvWriter.h" />
     <ClInclude Include="DataListView.h" />
     <ClInclude Include="MainDlg.h" />
     <ClInclude Include="NavigationBar.h" />

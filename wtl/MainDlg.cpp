@@ -1,10 +1,6 @@
 #include "stdafx.h"
 #include "MainDlg.h"
 
-CMainDlg::CMainDlg()
-{
-}
-
 LRESULT CMainDlg::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
 {
     CenterWindow();
@@ -54,7 +50,7 @@ LRESULT CMainDlg::OnBtnOpen(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/
 
     if (dlg.DoModal() == IDOK)
     {
-        CString strPath = dlg.GetFolderPath() + _T("\\") + dlg.GetFileName();
+        CString strPath = dlg.m_szFileName;
         
         if (m_model.LoadFromFile(strPath))
         {
@@ -73,7 +69,44 @@ LRESULT CMainDlg::OnBtnOpen(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/
 
 LRESULT CMainDlg::OnBtnSave(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
 {
-    ::MessageBox(m_hWnd, _T("保存功能待实现"), _T("提示"), MB_OK);
+    if (!m_model.IsLoaded())
+    {
+        ::MessageBox(m_hWnd, _T("请先打开一个CSV文件！"), _T("提示"), MB_OK | MB_ICONWARNING);
+        return 0;
+    }
+
+    CFileDialog dlg(FALSE, _T("csv"), NULL, 
+        OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST,
+        _T("CSV文件 (*.csv)\0*.csv\0所有文件 (*.*)\0*.*\0"), m_hWnd);
+
+    CString strCurrentPath = m_model.GetCurrentFilePath();
+    if (!strCurrentPath.IsEmpty())
+    {
+        dlg.m_ofn.lpstrFile = strCurrentPath.GetBuffer(MAX_PATH);
+        dlg.m_ofn.nMaxFile = MAX_PATH;
+    }
+
+    if (dlg.DoModal() == IDOK)
+    {
+        CString strPath = dlg.m_szFileName;
+        
+        CString strExt = ::PathFindExtension(strPath);
+        if (strExt.IsEmpty())
+        {
+            strPath += _T(".csv");
+        }
+
+        if (m_model.SaveToFileUTF8(strPath))
+        {
+            ::MessageBox(m_hWnd, _T("文件保存成功！"), _T("提示"), 
+                MB_OK | MB_ICONINFORMATION);
+        }
+        else
+        {
+            ::MessageBox(m_hWnd, _T("文件保存失败！"), _T("错误"), 
+                MB_OK | MB_ICONERROR);
+        }
+    }
     return 0;
 }
 
@@ -112,7 +145,7 @@ void CMainDlg::GetDataAreaRect(CRect& rc)
 {
     GetClientRect(&rc);
     rc.top = CHorizontalNavBar::MARGIN * 2 + CHorizontalNavBar::BTN_SIZE;
-    rc.DeflateRect(MARGIN, 0, MARGIN, MARGIN);
+    rc.DeflateRect(MARGIN, MARGIN, MARGIN, MARGIN);
 }
 
 void CMainDlg::SwitchToView(ViewType viewType)
