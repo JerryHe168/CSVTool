@@ -1,7 +1,9 @@
 #pragma once
 
 #define IDD_CSVTOOL_DIALOG              102
-#define IDC_STATIC                      -1
+
+#define IDS_APP_TITLE                   103
+#define IDC_CSVTOOL                     104
 
 #define IDC_BTN_OPEN                    1000
 #define IDC_BTN_SAVE                    1001

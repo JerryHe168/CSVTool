@@ -2,10 +2,8 @@
 #include "stdafx.h"
 #include "ViewInterfaces.h"
 #include "NavigationBar.h"
-
-class CDataListView;
-class CStatsListView;
-class CVerticalNavBar;
+#include "DataListView.h"
+#include "StatsListView.h"
 
 class CViewManager
 {
@@ -23,15 +21,15 @@ protected:
 
 public:
     CViewManager();
-    virtual ~CViewManager() {}
+    ~CViewManager();
 
     void SetModel(IDataModel* pModel);
     void SetParent(HWND hWndParent);
     ViewType GetCurrentView() const;
 
-    void CreateViews(const RECT& rcDataArea);
-    void SwitchToView(ViewType viewType, const RECT& rcDataArea);
-    void LayoutViews(const RECT& rcDataArea);
+    void CreateViews(RECT& rcDataArea);
+    void SwitchToView(ViewType viewType, RECT& rcDataArea);
+    void LayoutViews(RECT& rcDataArea);
     void RefreshCurrentView();
 
 protected:

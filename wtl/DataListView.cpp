@@ -1,19 +1,27 @@
 #include "stdafx.h"
 #include "DataListView.h"
 
-CDataListView::CDataListView()
-{
-}
-
-HWND CDataListView::Create(HWND hWndParent, const RECT& rc)
+HWND CDataListView::Create(HWND hWndParent, RECT& rc)
 {
     DWORD dwStyle = WS_CHILD | WS_VISIBLE | WS_TABSTOP | 
         LVS_REPORT | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER;
     
     m_hWnd = CWindowImpl<CDataListView, CListViewCtrl>::Create(
-        hWndParent, rc, NULL, dwStyle, WS_EX_CLIENTEDGE);
+        hWndParent, &rc, NULL, dwStyle, WS_EX_CLIENTEDGE);
     
     return m_hWnd;
+}
+
+void CDataListView::Show(BOOL bShow /* = TRUE */)
+{
+    if (m_hWnd)
+        CWindowImpl<CDataListView, CListViewCtrl>::ShowWindow(bShow ? SW_SHOW : SW_HIDE);
+}
+
+void CDataListView::MoveWindow(const RECT& rc)
+{
+    if (m_hWnd)
+        CWindowImpl<CDataListView, CListViewCtrl>::MoveWindow(&rc, TRUE);
 }
 
 void CDataListView::Refresh()

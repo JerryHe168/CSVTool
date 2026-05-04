@@ -14,11 +14,14 @@ public:
     END_MSG_MAP()
 
 public:
-    CStatsListView();
+    CStatsListView() {}
     virtual ~CStatsListView() {}
 
     virtual ViewType GetViewType() const { return VIEW_STATS; }
-    virtual HWND Create(HWND hWndParent, const RECT& rc);
+    virtual HWND Create(HWND hWndParent, RECT& rc);
+    virtual void Show(BOOL bShow = TRUE);
+    virtual void MoveWindow(const RECT& rc);
+    virtual HWND GetHwnd() const { return m_hWnd; }
     virtual void Refresh();
     void AutoSizeColumns();
 

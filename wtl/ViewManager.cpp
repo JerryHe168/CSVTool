@@ -11,6 +11,10 @@ CViewManager::CViewManager()
 {
 }
 
+CViewManager::~CViewManager()
+{
+}
+
 void CViewManager::SetModel(IDataModel* pModel)
 {
     m_pModel = pModel;
@@ -26,7 +30,7 @@ ViewType CViewManager::GetCurrentView() const
     return m_currentView;
 }
 
-void CViewManager::CreateViews(const RECT& rcDataArea)
+void CViewManager::CreateViews(RECT& rcDataArea)
 {
     if (!m_hWndParent) return;
 
@@ -45,7 +49,7 @@ void CViewManager::CreateViews(const RECT& rcDataArea)
     m_pVerticalNav->Show(FALSE);
 }
 
-void CViewManager::SwitchToView(ViewType viewType, const RECT& rcDataArea)
+void CViewManager::SwitchToView(ViewType viewType, RECT& rcDataArea)
 {
     HideAllViews();
     m_currentView = viewType;
@@ -81,7 +85,7 @@ void CViewManager::SwitchToView(ViewType viewType, const RECT& rcDataArea)
     }
 }
 
-void CViewManager::LayoutViews(const RECT& rcDataArea)
+void CViewManager::LayoutViews(RECT& rcDataArea)
 {
     if (m_currentView == VIEW_NONE)
         return;
