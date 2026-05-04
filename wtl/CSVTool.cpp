@@ -6,7 +6,7 @@
 
 CAppModule _Module;
 
-static void InitCommonControls()
+static void InitAppCommonControls()
 {
     INITCOMMONCONTROLSEX iccx;
     iccx.dwSize = sizeof(iccx);
@@ -19,7 +19,7 @@ int WINAPI _tWinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPTSTR /*
     ::SetConsoleCP(CP_UTF8);
     ::SetConsoleOutputCP(CP_UTF8);
 
-    InitCommonControls();
+    InitAppCommonControls();
 
     HRESULT hRes = ::CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     ATLASSERT(SUCCEEDED(hRes));
