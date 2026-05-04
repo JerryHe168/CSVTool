@@ -30,10 +30,8 @@ void CDataListView::Refresh()
 
     DeleteAllItems();
 
-    int nColCount = GetHeader().GetItemCount();
-    for (int i = 0; i < nColCount; ++i)
+    while (DeleteColumn(0))
     {
-        DeleteColumn(0);
     }
 
     if (!m_pModel || !m_pModel->IsLoaded())
@@ -66,7 +64,12 @@ void CDataListView::Refresh()
 
 void CDataListView::AutoSizeColumns()
 {
-    int nColCount = GetHeader().GetItemCount();
+    if (!m_hWnd) return;
+    
+    HWND hHeader = ListView_GetHeader(m_hWnd);
+    if (!hHeader) return;
+    
+    int nColCount = (int)::SendMessage(hHeader, HDM_GETITEMCOUNT, 0, 0);
     for (int i = 0; i < nColCount; ++i)
     {
         SetColumnWidth(i, LVSCW_AUTOSIZE_USEHEADER);
