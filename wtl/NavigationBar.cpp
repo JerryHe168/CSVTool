@@ -42,7 +42,8 @@ void CHorizontalNavBar::Create(HWND hWndParent)
     {
         DWORD dwStyle = WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | WS_TABSTOP;
         
-        m_buttons[i].m_btn.Create(hWndParent, CRect(0, 0, BTN_SIZE, BTN_SIZE), 
+        CRect rcBtn(0, 0, BTN_SIZE, BTN_SIZE);
+        m_buttons[i].m_btn.Create(hWndParent, &rcBtn, 
             m_buttons[i].m_strText, dwStyle, 0, m_buttons[i].m_nID);
         
         HFONT hFont = (HFONT)::SendMessage(hWndParent, WM_GETFONT, 0, 0);
@@ -97,14 +98,14 @@ int CVerticalNavBar::GetHeight() const
            2 * MARGIN;
 }
 
-HWND CVerticalNavBar::Create(HWND hWndParent, const RECT& rc)
+HWND CVerticalNavBar::Create(HWND hWndParent, RECT& rc)
 {
     m_hWndParent = hWndParent;
     
     DWORD dwStyle = WS_CHILD | WS_CLIPCHILDREN;
     
     m_hWnd = CWindowImpl<CVerticalNavBar, CWindow>::Create(
-        hWndParent, rc, NULL, dwStyle, 0);
+        hWndParent, &rc, NULL, dwStyle, 0);
     
     return m_hWnd;
 }
@@ -143,9 +144,8 @@ LRESULT CVerticalNavBar::OnEraseBkgnd(UINT /*uMsg*/, WPARAM wParam, LPARAM /*lPa
     CRect rcClient;
     GetClientRect(&rcClient);
     
-    COLORREF clrBtnFace = ::GetSysColor(COLOR_3DFACE);
-    CBrush brush(clrBtnFace);
-    dc.FillRect(&rcClient, brush);
+    HBRUSH hBrush = ::GetSysColorBrush(COLOR_3DFACE);
+    dc.FillRect(&rcClient, hBrush);
     
     return 1;
 }
@@ -156,7 +156,8 @@ void CVerticalNavBar::CreateButtons()
     {
         DWORD dwStyle = WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | BS_MULTILINE | WS_TABSTOP;
         
-        m_buttons[i].m_btn.Create(m_hWnd, CRect(0, 0, BTN_SIZE, BTN_SIZE), 
+        CRect rcBtn(0, 0, BTN_SIZE, BTN_SIZE);
+        m_buttons[i].m_btn.Create(m_hWnd, &rcBtn, 
             m_buttons[i].m_strText, dwStyle, 0, m_buttons[i].m_nID);
         
         HFONT hFont = GetParent().GetFont();

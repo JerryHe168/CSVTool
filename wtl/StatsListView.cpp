@@ -1,19 +1,27 @@
 #include "stdafx.h"
 #include "StatsListView.h"
 
-CStatsListView::CStatsListView()
-{
-}
-
-HWND CStatsListView::Create(HWND hWndParent, const RECT& rc)
+HWND CStatsListView::Create(HWND hWndParent, RECT& rc)
 {
     DWORD dwStyle = WS_CHILD | WS_VISIBLE | WS_TABSTOP | 
         LVS_REPORT | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER;
     
     m_hWnd = CWindowImpl<CStatsListView, CListViewCtrl>::Create(
-        hWndParent, rc, NULL, dwStyle, WS_EX_CLIENTEDGE);
+        hWndParent, &rc, NULL, dwStyle, WS_EX_CLIENTEDGE);
     
     return m_hWnd;
+}
+
+void CStatsListView::Show(BOOL bShow /* = TRUE */)
+{
+    if (m_hWnd)
+        CWindowImpl<CStatsListView, CListViewCtrl>::ShowWindow(bShow ? SW_SHOW : SW_HIDE);
+}
+
+void CStatsListView::MoveWindow(const RECT& rc)
+{
+    if (m_hWnd)
+        CWindowImpl<CStatsListView, CListViewCtrl>::MoveWindow(&rc, TRUE);
 }
 
 void CStatsListView::Refresh()
