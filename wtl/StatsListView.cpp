@@ -30,8 +30,14 @@ void CStatsListView::Refresh()
 
     DeleteAllItems();
 
-    while (DeleteColumn(0))
+    HWND hHeader = ListView_GetHeader(m_hWnd);
+    if (hHeader != NULL)
     {
+        int nColCount = (int)::SendMessage(hHeader, HDM_GETITEMCOUNT, 0, 0);
+        for (int i = nColCount - 1; i >= 0; --i)
+        {
+            DeleteColumn(i);
+        }
     }
 
     InsertColumn(0, _T("统计项"), LVCFMT_LEFT, 180);
