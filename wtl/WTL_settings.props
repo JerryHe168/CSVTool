@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ImportGroup Label="PropertySheets" />
+  <PropertyGroup Label="UserMacros">
+    <WTL_Include>C:\Users\87278\Downloads\WTL10_01_Release\Include</WTL_Include>
+  </PropertyGroup>
+  <PropertyGroup />
+  <ItemDefinitionGroup />
+  <ItemGroup>
+    <BuildMacro Include="WTL_Include">
+      <Value>$(WTL_Include)</Value>
+    </BuildMacro>
+  </ItemGroup>
+</Project>

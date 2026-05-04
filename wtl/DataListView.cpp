@@ -1,0 +1,72 @@
+#include "stdafx.h"
+#include "DataListView.h"
+
+CDataListView::CDataListView()
+{
+}
+
+HWND CDataListView::Create(HWND hWndParent, const RECT& rc)
+{
+    DWORD dwStyle = WS_CHILD | WS_VISIBLE | WS_TABSTOP | 
+        LVS_REPORT | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER;
+    
+    m_hWnd = CWindowImpl<CDataListView, CListViewCtrl>::Create(
+        hWndParent, rc, NULL, dwStyle, WS_EX_CLIENTEDGE);
+    
+    return m_hWnd;
+}
+
+void CDataListView::Refresh()
+{
+    if (!m_hWnd) return;
+
+    DeleteAllItems();
+
+    int nColCount = GetHeader().GetItemCount();
+    for (int i = 0; i < nColCount; ++i)
+    {
+        DeleteColumn(0);
+    }
+
+    if (!m_pModel || !m_pModel->IsLoaded())
+        return;
+
+    size_t nColCnt = m_pModel->GetColumnCount();
+    for (size_t i = 0; i < nColCnt; ++i)
+    {
+        CString strHeader = m_pModel->GetHeader(i);
+        InsertColumn((int)i, strHeader, LVCFMT_LEFT, 120);
+    }
+
+    size_t nRowCnt = m_pModel->GetRowCount();
+    size_t nMaxRows = 10000;
+    
+    for (size_t row = 0; row < nRowCnt && row < nMaxRows; ++row)
+    {
+        CString strFirst = m_pModel->GetCell(row, 0);
+        InsertItem((int)row, strFirst);
+        
+        for (size_t col = 1; col < nColCnt; ++col)
+        {
+            CString strCell = m_pModel->GetCell(row, col);
+            SetItemText((int)row, (int)col, strCell);
+        }
+    }
+
+    AutoSizeColumns();
+}
+
+void CDataListView::AutoSizeColumns()
+{
+    int nColCount = GetHeader().GetItemCount();
+    for (int i = 0; i < nColCount; ++i)
+    {
+        SetColumnWidth(i, LVSCW_AUTOSIZE_USEHEADER);
+    }
+}
+
+LRESULT CDataListView::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
+{
+    SetExtendedListViewStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+    return 0;
+}
