@@ -30,10 +30,8 @@ void CStatsListView::Refresh()
 
     DeleteAllItems();
 
-    int nColCount = GetHeader().GetItemCount();
-    for (int i = 0; i < nColCount; ++i)
+    while (DeleteColumn(0))
     {
-        DeleteColumn(0);
     }
 
     InsertColumn(0, _T("统计项"), LVCFMT_LEFT, 180);
@@ -43,6 +41,7 @@ void CStatsListView::Refresh()
     {
         InsertItem(0, _T("请先打开CSV文件"));
         SetItemText(0, 1, _T("-"));
+        AutoSizeColumns();
         return;
     }
 
@@ -60,7 +59,12 @@ void CStatsListView::Refresh()
 
 void CStatsListView::AutoSizeColumns()
 {
-    int nColCount = GetHeader().GetItemCount();
+    if (!m_hWnd) return;
+    
+    HWND hHeader = ListView_GetHeader(m_hWnd);
+    if (!hHeader) return;
+    
+    int nColCount = (int)::SendMessage(hHeader, HDM_GETITEMCOUNT, 0, 0);
     for (int i = 0; i < nColCount; ++i)
     {
         SetColumnWidth(i, LVSCW_AUTOSIZE_USEHEADER);
