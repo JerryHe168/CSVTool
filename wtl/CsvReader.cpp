@@ -43,35 +43,6 @@ bool CCsvReader::IsUTF8WithBOM(const char* pBuffer, size_t nSize)
     return false;
 }
 
-bool CCsvReader::IsContentUTF8(const char* pBuffer, size_t nSize)
-{
-    size_t i = 0;
-    while (i < nSize)
-    {
-        if ((unsigned char)pBuffer[i] <= 0x7F)
-        {
-            i++;
-        }
-        else if ((unsigned char)pBuffer[i] >= 0xC0 && (unsigned char)pBuffer[i] <= 0xDF)
-        {
-            if (i + 1 >= nSize) return false;
-            if ((unsigned char)pBuffer[i + 1] < 0x80) return false;
-            i += 2;
-        }
-        else if ((unsigned char)pBuffer[i] >= 0xE0 && (unsigned char)pBuffer[i] <= 0xEF)
-        {
-            if (i + 2 >= nSize) return false;
-            if ((unsigned char)pBuffer[i + 1] < 0x80 || (unsigned char)pBuffer[i + 2] < 0x80) return false;
-            i += 3;
-        }
-        else
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
 CString CCsvReader::GetHeader(size_t col) const
 {
     if (col < m_headers.size())
@@ -86,14 +57,54 @@ CString CCsvReader::GetCell(size_t row, size_t col) const
     return CString();
 }
 
+std::vector<CString> CCsvReader::ParseCSVLine(const std::string& strLine, bool bIsUTF8)
+{
+    std::vector<CString> result;
+    std::string strField;
+    bool bInQuotes = false;
+
+    for (size_t i = 0; i <= strLine.size(); ++i)
+    {
+        char c = (i < strLine.size()) ? strLine[i] : '\0';
+
+        if (c == '"')
+        {
+            if (bInQuotes && i + 1 < strLine.size() && strLine[i + 1] == '"')
+            {
+                strField += '"';
+                ++i;
+            }
+            else
+            {
+                bInQuotes = !bInQuotes;
+            }
+        }
+        else if ((c == m_delimiter && !bInQuotes) || c == '\0')
+        {
+            CString strValue;
+            if (bIsUTF8)
+                strValue = UTF8ToUnicode(strField.c_str());
+            else
+                strValue = AnsiToUnicode(strField.c_str());
+            
+            result.push_back(strValue);
+            strField.clear();
+        }
+        else
+        {
+            strField += c;
+        }
+    }
+
+    return result;
+}
+
 bool CCsvReader::Read(LPCTSTR pszFilePath, char delimiter)
 {
     m_delimiter = delimiter;
     m_bLoaded = false;
     m_data.clear();
     m_headers.clear();
-
-    USES_CONVERSION;
 
     HANDLE hFile = ::CreateFile(pszFilePath, GENERIC_READ, FILE_SHARE_READ, NULL, 
         OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -123,98 +134,92 @@ bool CCsvReader::Read(LPCTSTR pszFilePath, char delimiter)
 
     ::CloseHandle(hFile);
 
-    int nStartPos = 0;
-    if (IsUTF8WithBOM(pBuffer, dwFileSize))
+    std::string strContent(pBuffer, dwRead);
+    ::GlobalFree(hGlobal);
+
+    bool bHasBOM = false;
+    if (strContent.size() >= 3 &&
+        (unsigned char)strContent[0] == 0xEF &&
+        (unsigned char)strContent[1] == 0xBB &&
+        (unsigned char)strContent[2] == 0xBF)
+    {
+        bHasBOM = true;
+    }
+
+    bool bIsUTF8 = IsContentUTF8(strContent.c_str(), strContent.size());
+    
+    size_t nStartPos = 0;
+    if (bHasBOM)
     {
         nStartPos = 3;
     }
 
-    std::string strContent(&pBuffer[nStartPos]);
-    ::GlobalFree(hGlobal);
+    std::string strProcessContent = strContent.substr(nStartPos);
 
-    bool bIsUTF8 = IsContentUTF8(strContent.c_str(), strContent.size());
-    
-    if (!ParseCSVContent(strContent, bIsUTF8))
-        return false;
-
-    m_bLoaded = true;
-    return true;
-}
-
-bool CCsvReader::ParseCSVContent(const std::string& strContent, bool bIsUTF8)
-{
+    std::vector<std::string> lines;
     std::string::size_type nPos = 0;
-    bool bFirstLine = true;
-
-    while (nPos < strContent.size())
+    
+    while (nPos < strProcessContent.size())
     {
-        std::string::size_type nLineEnd = strContent.find('\n', nPos);
+        std::string::size_type nLineEnd = strProcessContent.find('\n', nPos);
         if (nLineEnd == std::string::npos)
-            nLineEnd = strContent.size();
+            nLineEnd = strProcessContent.size();
 
-        std::string strLine = strContent.substr(nPos, nLineEnd - nPos);
+        std::string strLine = strProcessContent.substr(nPos, nLineEnd - nPos);
         
         if (!strLine.empty() && strLine[strLine.size() - 1] == '\r')
             strLine = strLine.substr(0, strLine.size() - 1);
 
         if (!strLine.empty())
         {
-            std::vector<CString> row;
-            ParseCSVLine(strLine, row, bIsUTF8);
-
-            if (bFirstLine)
-            {
-                m_headers = row;
-                bFirstLine = false;
-            }
-            else
-            {
-                m_data.push_back(row);
-            }
+            lines.push_back(strLine);
         }
 
         nPos = nLineEnd + 1;
     }
 
+    if (lines.empty())
+    {
+        return false;
+    }
+
+    m_headers = ParseCSVLine(lines[0], bIsUTF8);
+
+    for (size_t i = 1; i < lines.size(); ++i)
+    {
+        std::vector<CString> row = ParseCSVLine(lines[i], bIsUTF8);
+        m_data.push_back(row);
+    }
+
+    m_bLoaded = true;
     return true;
 }
 
-void CCsvReader::ParseCSVLine(const std::string& strLine, std::vector<CString>& row, bool bIsUTF8)
+bool CCsvReader::IsContentUTF8(const char* pBuffer, size_t nSize)
 {
-    std::string::size_type nStart = 0;
-    bool bInQuotes = false;
-    std::string strField;
-
-    for (std::string::size_type i = 0; i <= strLine.size(); ++i)
+    size_t i = 0;
+    while (i < nSize)
     {
-        char c = (i < strLine.size()) ? strLine[i] : '\0';
-
-        if (c == '"')
+        if ((unsigned char)pBuffer[i] <= 0x7F)
         {
-            if (bInQuotes && i + 1 < strLine.size() && strLine[i + 1] == '"')
-            {
-                strField += '"';
-                ++i;
-            }
-            else
-            {
-                bInQuotes = !bInQuotes;
-            }
+            i++;
         }
-        else if ((c == m_delimiter && !bInQuotes) || c == '\0')
+        else if ((unsigned char)pBuffer[i] >= 0xC0 && (unsigned char)pBuffer[i] <= 0xDF)
         {
-            CString strValue;
-            if (bIsUTF8)
-                strValue = UTF8ToUnicode(strField.c_str());
-            else
-                strValue = AnsiToUnicode(strField.c_str());
-            
-            row.push_back(strValue);
-            strField.clear();
+            if (i + 1 >= nSize) return false;
+            if ((unsigned char)pBuffer[i + 1] < 0x80) return false;
+            i += 2;
+        }
+        else if ((unsigned char)pBuffer[i] >= 0xE0 && (unsigned char)pBuffer[i] <= 0xEF)
+        {
+            if (i + 2 >= nSize) return false;
+            if ((unsigned char)pBuffer[i + 1] < 0x80 || (unsigned char)pBuffer[i + 2] < 0x80) return false;
+            i += 3;
         }
         else
         {
-            strField += c;
+            return false;
         }
     }
+    return true;
 }

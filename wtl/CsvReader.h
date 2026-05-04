@@ -32,6 +32,5 @@ protected:
     static CString AnsiToUnicode(const char* pszAnsi);
     static CString UTF8ToUnicode(const char* pszUTF8);
     
-    bool ParseCSVContent(const std::string& strContent, bool bIsUTF8);
-    void ParseCSVLine(const std::string& strLine, std::vector<CString>& row, bool bIsUTF8);
+    std::vector<CString> ParseCSVLine(const std::string& strLine, bool bIsUTF8);
 };

@@ -5,6 +5,8 @@ LRESULT CMainDlg::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam
 {
     CenterWindow();
 
+    SetWindowText(_T("CSV Tool - 数据处理工具"));
+
     m_topNavBar.Create(m_hWnd);
     m_viewManager.SetModel(&m_model);
     m_viewManager.SetParent(m_hWnd);
@@ -75,38 +77,44 @@ LRESULT CMainDlg::OnBtnSave(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/
         return 0;
     }
 
-    CFileDialog dlg(FALSE, _T("csv"), NULL, 
-        OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST,
-        _T("CSV文件 (*.csv)\0*.csv\0所有文件 (*.*)\0*.*\0"), m_hWnd);
-
     CString strCurrentPath = m_model.GetCurrentFilePath();
+    CString strSavePath;
+
     if (!strCurrentPath.IsEmpty())
     {
-        dlg.m_ofn.lpstrFile = strCurrentPath.GetBuffer(MAX_PATH);
-        dlg.m_ofn.nMaxFile = MAX_PATH;
+        strSavePath = strCurrentPath;
     }
-
-    if (dlg.DoModal() == IDOK)
+    else
     {
-        CString strPath = dlg.m_szFileName;
+        CFileDialog dlg(FALSE, _T("csv"), NULL, 
+            OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST,
+            _T("CSV文件 (*.csv)\0*.csv\0所有文件 (*.*)\0*.*\0"), m_hWnd);
+
+        if (dlg.DoModal() != IDOK)
+        {
+            return 0;
+        }
+
+        strSavePath = dlg.m_szFileName;
         
-        CString strExt = ::PathFindExtension(strPath);
+        CString strExt = ::PathFindExtension(strSavePath);
         if (strExt.IsEmpty())
         {
-            strPath += _T(".csv");
-        }
-
-        if (m_model.SaveToFileUTF8(strPath))
-        {
-            ::MessageBox(m_hWnd, _T("文件保存成功！"), _T("提示"), 
-                MB_OK | MB_ICONINFORMATION);
-        }
-        else
-        {
-            ::MessageBox(m_hWnd, _T("文件保存失败！"), _T("错误"), 
-                MB_OK | MB_ICONERROR);
+            strSavePath += _T(".csv");
         }
     }
+
+    if (m_model.SaveToFileUTF8(strSavePath))
+    {
+        ::MessageBox(m_hWnd, _T("文件保存成功！"), _T("提示"), 
+            MB_OK | MB_ICONINFORMATION);
+    }
+    else
+    {
+        ::MessageBox(m_hWnd, _T("文件保存失败！"), _T("错误"), 
+            MB_OK | MB_ICONERROR);
+    }
+
     return 0;
 }
 

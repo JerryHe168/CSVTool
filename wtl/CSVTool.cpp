@@ -2,10 +2,25 @@
 #include "resource.h"
 #include "MainDlg.h"
 
+#pragma comment(lib, "comctl32.lib")
+
 CAppModule _Module;
+
+static void InitCommonControls()
+{
+    INITCOMMONCONTROLSEX iccx;
+    iccx.dwSize = sizeof(iccx);
+    iccx.dwICC = ICC_STANDARD_CLASSES | ICC_WIN95_CLASSES;
+    ::InitCommonControlsEx(&iccx);
+}
 
 int WINAPI _tWinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPTSTR /*lpstrCmdLine*/, int nCmdShow)
 {
+    ::SetConsoleCP(CP_UTF8);
+    ::SetConsoleOutputCP(CP_UTF8);
+
+    InitCommonControls();
+
     HRESULT hRes = ::CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     ATLASSERT(SUCCEEDED(hRes));
 
