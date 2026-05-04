@@ -1,7 +1,7 @@
 #pragma once
 #include "stdafx.h"
+#include "CsvStatistics.h"
 
-struct CColumnStatistics;
 class IDataModel;
 
 enum ViewType
