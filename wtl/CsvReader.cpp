@@ -195,6 +195,36 @@ bool CCsvReader::Read(LPCTSTR pszFilePath, char delimiter)
     return true;
 }
 
+void CCsvReader::SetCell(size_t row, size_t col, const CString& value)
+{
+    if (row >= m_data.size())
+        return;
+    
+    auto& rowData = m_data[row];
+    if (col >= rowData.size())
+    {
+        rowData.resize(col + 1);
+    }
+    rowData[col] = value;
+}
+
+void CCsvReader::SetData(const std::vector<std::vector<CString>>& data)
+{
+    m_data = data;
+}
+
+void CCsvReader::SetHeaders(const std::vector<CString>& headers)
+{
+    m_headers = headers;
+}
+
+void CCsvReader::Clear()
+{
+    m_data.clear();
+    m_headers.clear();
+    m_bLoaded = false;
+}
+
 bool CCsvReader::IsContentUTF8(const char* pBuffer, size_t nSize)
 {
     size_t i = 0;
